@@ -23,7 +23,7 @@ type RoleName struct {
 }
 
 type Action struct {
-	ID uint8 `gorm:"auto_increment:false;"`
+	ID uint8
 }
 
 type Role struct {

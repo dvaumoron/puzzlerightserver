@@ -18,47 +18,16 @@
 package main
 
 import (
-	"context"
 	"log"
 	"net"
 	"os"
 
 	"github.com/dvaumoron/puzzlerightserver/dbclient"
+	"github.com/dvaumoron/puzzlerightserver/rightserver"
 	pb "github.com/dvaumoron/puzzlerightservice"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
-	"gorm.io/gorm"
 )
-
-// server is used to implement puzzlerightservice.RightServer.
-type server struct {
-	pb.UnimplementedRightServer
-	db *gorm.DB
-}
-
-func (s *server) AuthQuery(context.Context, *pb.RightRequest) (*pb.Response, error) {
-	return nil, nil
-}
-
-func (s *server) ListRoles(context.Context, *pb.ObjectIds) (*pb.Roles, error) {
-	return nil, nil
-}
-
-func (s *server) RoleRight(context.Context, *pb.RoleRequest) (*pb.Actions, error) {
-	return nil, nil
-}
-
-func (s *server) UpdateUser(context.Context, *pb.UserRight) (*pb.Response, error) {
-	return nil, nil
-}
-
-func (s *server) UpdateRole(context.Context, *pb.Role) (*pb.Response, error) {
-	return nil, nil
-}
-
-func (s *server) ListUserRoles(context.Context, *pb.UserId) (*pb.Roles, error) {
-	return nil, nil
-}
 
 func main() {
 	err := godotenv.Load()
@@ -74,7 +43,7 @@ func main() {
 	db := dbclient.Create()
 
 	s := grpc.NewServer()
-	pb.RegisterRightServer(s, &server{db: db})
+	pb.RegisterRightServer(s, &rightserver.Server{DB: db})
 	log.Printf("Listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve : %v", err)
