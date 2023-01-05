@@ -31,15 +31,22 @@ import (
 const adminGroupId = 1 // groupId corresponding to role administration
 
 func main() {
-	adminUserIdStr := os.Args[1] // id
+	if len(os.Args) == 0 {
+		log.Print("Wait an id for the initial admin user as argument")
+	}
+
+	adminUserIdStr := os.Args[1]
 	adminUserId, err := strconv.ParseUint(adminUserIdStr, 10, 64)
+	if err != nil {
+		log.Fatal("Failed to parse the id as an integer")
+	}
 
 	err = godotenv.Load()
 	if err != nil {
 		log.Fatal("Failed to load .env file")
 	}
 
-	db := dbclient.Create(os.Getenv("DB_SERVER_TYPE"), os.Getenv("DB_SERVER_ADDR"))
+	db := dbclient.Create()
 
 	db.AutoMigrate(&model.User{}, &model.Role{}, &model.Action{}, &model.RoleName{})
 

@@ -71,7 +71,7 @@ func main() {
 		log.Fatalf("Failed to listen : %v", err)
 	}
 
-	db := dbclient.Create(os.Getenv("DB_SERVER_TYPE"), os.Getenv("DB_SERVER_ADDR"))
+	db := dbclient.Create()
 
 	s := grpc.NewServer()
 	pb.RegisterRightServer(s, &server{db: db})

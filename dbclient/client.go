@@ -19,16 +19,19 @@ package dbclient
 
 import (
 	"log"
+	"os"
 	"strings"
 
-	"github.com/glebarez/sqlite"
+	"github.com/glebarez/sqlite" // driver without cgo
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-func Create(kind, addr string) *gorm.DB {
+func Create() *gorm.DB {
+	kind := strings.ToLower(os.Getenv("DB_SERVER_TYPE"))
+	addr := os.Getenv("DB_SERVER_ADDR")
 	var dialector gorm.Dialector
-	switch strings.ToLower(kind) {
+	switch kind {
 	case "sqlite":
 		dialector = sqlite.Open(addr)
 	case "postgres":
