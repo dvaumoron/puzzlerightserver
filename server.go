@@ -1,6 +1,6 @@
 /*
  *
- * Copyright 2022 puzzlesessionserver authors.
+ * Copyright 2022 puzzlerightserver authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,13 +22,11 @@ import (
 	"log"
 	"net"
 	"os"
-	"strings"
 
+	"github.com/dvaumoron/puzzlerightserver/dbclient"
 	pb "github.com/dvaumoron/puzzlerightservice"
 	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -73,7 +71,7 @@ func main() {
 		log.Fatalf("Failed to listen : %v", err)
 	}
 
-	db := createDB(os.Getenv("DB_SERVER_TYPE"), os.Getenv("DB_SERVER_ADDR"))
+	db := dbclient.Create(os.Getenv("DB_SERVER_TYPE"), os.Getenv("DB_SERVER_ADDR"))
 
 	s := grpc.NewServer()
 	pb.RegisterRightServer(s, &server{db: db})
@@ -81,21 +79,4 @@ func main() {
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve : %v", err)
 	}
-}
-
-func createDB(kind, addr string) *gorm.DB {
-	var dialector gorm.Dialector
-	switch strings.ToLower(kind) {
-	case "sqlite":
-		dialector = sqlite.Open(addr)
-	case "postgres":
-		dialector = postgres.Open(addr)
-	default:
-		log.Fatalf("Unknown database type : %v", kind)
-	}
-	db, err := gorm.Open(dialector, &gorm.Config{})
-	if err != nil {
-		log.Fatalf("Database connection failed : %v", err)
-	}
-	return db
 }
