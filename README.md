@@ -1,2 +1,3 @@
 # puzzlerightserver
- A simple implementation of a puzzlerightservice server calling a sql database.
+
+A simple implementation of a [puzzlerightservice](https://github.com/dvaumoron/puzzlerightservice) server calling a sql database.
