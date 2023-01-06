@@ -25,15 +25,21 @@ import (
 	"gorm.io/gorm"
 )
 
+type empty = struct{}
+
 // Server is used to implement puzzlerightservice.RightServer.
 type Server struct {
 	pb.UnimplementedRightServer
-	DB *gorm.DB
+	db *gorm.DB
+}
+
+func New(db *gorm.DB) *Server {
+	return &Server{db: db}
 }
 
 func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
 	var user model.User
-	err := s.DB.Joins(
+	err := s.db.Joins(
 		"Roles", "object_id = ?", request.ObjectId,
 	).Joins(
 		"Roles.Actions", "id = ?", uint8(request.Action),
@@ -54,7 +60,7 @@ func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 
 func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
 	var roleNames []*model.RoleName
-	err := s.DB.Joins(
+	err := s.db.Joins(
 		"Roles", "object_id IN (?)", request.Ids,
 	).Joins("Roles.Actions").Find(&roleNames).Error
 	var response *pb.Roles
@@ -65,7 +71,7 @@ func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Role
 }
 
 func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
-	roleName, err := loadRole(s.DB, request.Name, request.ObjectId)
+	roleName, err := loadRole(s.db, request.Name, request.ObjectId)
 	var actions *pb.Actions
 	if err == nil {
 		actions = &pb.Actions{}
@@ -78,12 +84,12 @@ func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 
 func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Response, error) {
 	var user model.User
-	err := s.DB.FirstOrCreate(&user, model.User{ID: request.UserId}).Error
+	err := s.db.FirstOrCreate(&user, model.User{ID: request.UserId}).Error
 	if err == nil {
 		var roles []*model.Role
-		roles, err = loadRoles(s.DB, request.List)
+		roles, err = loadRoles(s.db, request.List)
 		if err == nil {
-			err = s.DB.Model(&user).Association("Roles").Replace(roles)
+			err = s.db.Model(&user).Association("Roles").Replace(roles)
 		}
 	}
 	return &pb.Response{Success: err == nil}, nil
@@ -91,15 +97,15 @@ func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Res
 
 func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
 	var roleName model.RoleName
-	err := s.DB.FirstOrCreate(&roleName, model.RoleName{Name: request.Name}).Error
+	err := s.db.FirstOrCreate(&roleName, model.RoleName{Name: request.Name}).Error
 	if err == nil {
 		var role model.Role
-		err = s.DB.FirstOrCreate(&role, model.Role{
+		err = s.db.FirstOrCreate(&role, model.Role{
 			RoleNameID: roleName.ID, ObjectId: request.ObjectId,
 		}).Error
 		if err == nil {
 			actions := convertActionsFromRequest(request.List)
-			err = s.DB.Model(&role).Association("Actions").Replace(actions)
+			err = s.db.Model(&role).Association("Actions").Replace(actions)
 		}
 	}
 	return &pb.Response{Success: err == nil}, nil
@@ -107,11 +113,11 @@ func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response
 
 func (s *Server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
 	var user model.User
-	err := s.DB.Joins("Roles").First(&user, request.Id).Error
+	err := s.db.Joins("Roles").First(&user, request.Id).Error
 	var roles *pb.Roles
 	if err == nil {
 		var roleNames []*model.RoleName
-		err = s.DB.Joins(
+		err = s.db.Joins(
 			"Roles", "id IN (?)", extractRoleIds(user.Roles),
 		).Joins("Roles.Actions").Find(&roleNames).Error
 		if err == nil {
@@ -161,7 +167,6 @@ func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 }
 
 func extractNamesToObjectIds(roles []*pb.RoleRequest) map[string][]uint64 {
-	type empty = struct{}
 	nameToObjectIdSet := map[string]map[uint64]empty{}
 	for _, role := range roles {
 		name := role.Name

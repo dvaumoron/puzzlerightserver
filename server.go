@@ -43,7 +43,7 @@ func main() {
 	db := dbclient.Create()
 
 	s := grpc.NewServer()
-	pb.RegisterRightServer(s, &rightserver.Server{DB: db})
+	pb.RegisterRightServer(s, rightserver.New(db))
 	log.Printf("Listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve : %v", err)
