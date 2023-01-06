@@ -18,8 +18,9 @@
 package model
 
 type RoleName struct {
-	ID   uint64
-	Name string
+	ID    uint64
+	Name  string
+	Roles []*Role
 }
 
 type Action struct {
@@ -29,7 +30,6 @@ type Action struct {
 type Role struct {
 	ID         uint64
 	RoleNameID uint64
-	RoleName   *RoleName
 	ObjectId   uint64
 	Actions    []Action `gorm:"many2many:role_actions;"`
 }

@@ -55,15 +55,14 @@ func main() {
 	ActionUpdate := model.Action{ID: uint8(pb.RightAction_ACCESS)}
 	ActionDelete := model.Action{ID: uint8(pb.RightAction_ACCESS)}
 
-	db.Create(&ActionAccess)
-	db.Create(&ActionCreate)
-	db.Create(&ActionUpdate)
-	db.Create(&ActionDelete)
+	db.Save(&ActionAccess)
+	db.Save(&ActionCreate)
+	db.Save(&ActionUpdate)
+	db.Save(&ActionDelete)
 
-	adminName := &model.RoleName{Name: "Admin"}
-	adminRole := &model.Role{
-		RoleName: adminName, ObjectId: adminGroupId,
+	adminRole := &model.Role{ObjectId: adminGroupId,
 		Actions: []model.Action{ActionAccess, ActionCreate, ActionUpdate, ActionDelete},
 	}
-	db.Create(&model.User{ID: adminUserId, Roles: []*model.Role{adminRole}})
+	db.Create(&model.RoleName{Name: "Admin", Roles: []*model.Role{adminRole}})
+	db.Save(&model.User{ID: adminUserId, Roles: []*model.Role{adminRole}})
 }
