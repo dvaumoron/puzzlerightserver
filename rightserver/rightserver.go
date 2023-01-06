@@ -32,28 +32,20 @@ type Server struct {
 }
 
 func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
-	user := &model.User{ID: request.UserId}
-	err := s.DB.Preload("Roles").First(user).Error
+	user := model.User{ID: request.UserId}
+	err := s.DB.Joins(
+		"Roles", s.DB.Where(&model.Role{ObjectId: request.ObjectId}),
+	).Joins(
+		"Roles.Actions", s.DB.Where(&model.Action{ID: uint8(request.Action)}),
+	).First(&user).Error
 	var response *pb.Response
 	if err == nil {
-		rObjectId := request.ObjectId
-		rAction := uint8(request.Action)
-
 		success := false
-	RolesLoop:
 		for _, role := range user.Roles {
-			if role.ObjectId == rObjectId {
-				err = s.DB.Preload("Actions").First(role).Error
-				if err != nil {
-					break RolesLoop
-				}
-
-				for _, action := range role.Actions {
-					if action.ID == rAction {
-						success = true
-						break RolesLoop
-					}
-				}
+			if len(role.Actions) != 0 {
+				// if we reach here the correct result exists
+				success = true
+				break
 			}
 		}
 		response = &pb.Response{Success: success}
@@ -62,29 +54,26 @@ func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 }
 
 func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
-	ids := request.Ids
-	var roles []model.Role
-	err := s.DB.Preload("RoleName").Preload("Actions").Where("ObjectId IN (?)", ids).Find(&roles).Error
+	var roles []*model.Role
+	err := s.DB.Joins("RoleName").Joins("Actions").Where(
+		"object_id IN (?)", request.Ids,
+	).Find(&roles).Error
 	var response *pb.Roles
 	if err == nil {
-		var list []*pb.Role
-		for _, role := range roles {
-			list = append(list, &pb.Role{
-				Name: role.RoleName.Name, ObjectId: role.ObjectId,
-				List: convertActionsFromModel(role.Actions),
-			})
-		}
-		response = &pb.Roles{List: list}
+		response = &pb.Roles{List: convertRolesFromModel(roles)}
 	}
 	return response, err
 }
 
 func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
-	var role model.Role
-	err := s.DB.Preload("Actions").Where("name = ? AND object_id = ?", request.Name, request.ObjectId).First(&role).Error
+	roleName, err := loadOrCreateRoleName(s.DB, request.Name)
 	var actions *pb.Actions
 	if err == nil {
-		actions = &pb.Actions{List: convertActionsFromModel(role.Actions)}
+		var role *model.Role
+		role, err = loadRole(s.DB, roleName.ID, request.ObjectId)
+		if err == nil {
+			actions = &pb.Actions{List: convertActionsFromModel(role.Actions)}
+		}
 	}
 	return actions, err
 }
@@ -103,27 +92,41 @@ func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Res
 }
 
 func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
-	name := request.Name
-	objectId := request.ObjectId
-	role, err := loadRole(s.DB, name, objectId)
-	if err == gorm.ErrRecordNotFound {
-		roleName, err := loadOrCreateRoleName(s.DB, name)
-		if err == nil {
+	roleName, err := loadOrCreateRoleName(s.DB, request.Name)
+	if err == nil {
+		objectId := request.ObjectId
+		role, err := loadRole(s.DB, roleName.ID, objectId)
+		if err == gorm.ErrRecordNotFound {
 			role = &model.Role{RoleName: roleName, ObjectId: objectId}
-			err = s.DB.Create(role).Error
-			if err == nil {
+			if err = s.DB.Create(role).Error; err == nil {
 				updateRole(s.DB, role, request.List)
 			}
+		} else if err == nil {
+			updateRole(s.DB, role, request.List)
 		}
-	} else if err == nil {
-		updateRole(s.DB, role, request.List)
 	}
-	return &pb.Response{Success: err == nil}, err
+	return &pb.Response{Success: err == nil}, nil
 }
 
 func (s *Server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
-	// TODO
-	return nil, nil
+	user := model.User{ID: request.Id}
+	err := s.DB.Joins("Roles").Joins("Roles.RoleName").Joins("Roles.Actions").First(&user).Error
+	var roles *pb.Roles
+	if err == nil {
+		roles = &pb.Roles{List: convertRolesFromModel(user.Roles)}
+	}
+	return roles, err
+}
+
+func convertRolesFromModel(roles []*model.Role) []*pb.Role {
+	var resRoles []*pb.Role
+	for _, role := range roles {
+		resRoles = append(resRoles, &pb.Role{
+			Name: role.RoleName.Name, ObjectId: role.ObjectId,
+			List: convertActionsFromModel(role.Actions),
+		})
+	}
+	return resRoles
 }
 
 func convertActionsFromModel(actions []model.Action) []pb.RightAction {
@@ -147,8 +150,14 @@ func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 	resRoles := []*model.Role{}
 	var err error
 	for _, role := range roles {
+		var roleName *model.RoleName
+		roleName, err = loadOrCreateRoleName(db, role.Name)
+		if err != nil {
+			break
+		}
+
 		var loadedRole *model.Role
-		loadedRole, err = loadRole(db, role.Name, role.ObjectId)
+		loadedRole, err = loadRole(db, roleName.ID, role.ObjectId)
 		if err != nil {
 			break
 		}
@@ -157,17 +166,20 @@ func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 	return resRoles, err
 }
 
-func loadRole(db *gorm.DB, name string, objectId uint64) (*model.Role, error) {
-	loadedRole := &model.Role{}
-	err := db.Preload("RoleName").Preload("Actions").Where("name = ? AND object_id = ?", name, objectId).First(loadedRole).Error
-	return loadedRole, err
+func loadRole(db *gorm.DB, nameId uint64, objectId uint64) (*model.Role, error) {
+	role := &model.Role{}
+	err := db.Joins("Actions").Where(
+		&model.Role{RoleNameID: nameId, ObjectId: objectId},
+	).First(role).Error
+	return role, err
 }
 
 func loadOrCreateRoleName(db *gorm.DB, name string) (*model.RoleName, error) {
 	roleName := &model.RoleName{}
-	err := db.Where("name = ?", name).First(roleName).Error
+	query := &model.RoleName{Name: name}
+	err := db.Where(query).First(roleName).Error
 	if err == gorm.ErrRecordNotFound {
-		roleName.Name = name
+		roleName = query
 		err = db.Create(roleName).Error
 	}
 	return roleName, err
