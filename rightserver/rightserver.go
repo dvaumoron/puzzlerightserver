@@ -19,6 +19,7 @@ package rightserver
 
 import (
 	"context"
+	"errors"
 
 	"github.com/dvaumoron/puzzlerightserver/model"
 	pb "github.com/dvaumoron/puzzlerightservice"
@@ -54,6 +55,10 @@ func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 			}
 		}
 		response = &pb.Response{Success: success}
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// unknown user are not authorized
+		response = &pb.Response{Success: false}
+		err = nil
 	}
 	return response, err
 }
@@ -83,13 +88,17 @@ func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 }
 
 func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Response, error) {
-	var user model.User
-	err := s.db.FirstOrCreate(&user, model.User{ID: request.UserId}).Error
+	userId := request.UserId
+	roles, err := loadRoles(s.db, request.List)
 	if err == nil {
-		var roles []*model.Role
-		roles, err = loadRoles(s.db, request.List)
-		if err == nil {
-			err = s.db.Model(&user).Association("Roles").Replace(roles)
+		if len(roles) == 0 {
+			err = s.db.Delete(&model.User{}, userId).Error
+		} else {
+			var user model.User
+			err = s.db.FirstOrCreate(&user, model.User{ID: userId}).Error
+			if err == nil {
+				err = s.db.Model(&user).Association("Roles").Replace(roles)
+			}
 		}
 	}
 	return &pb.Response{Success: err == nil}, nil
@@ -123,6 +132,10 @@ func (s *Server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Rol
 		if err == nil {
 			roles = &pb.Roles{List: convertRolesFromModel(roleNames)}
 		}
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		// unknown user, send back an empty role list
+		roles = &pb.Roles{}
+		err = nil
 	}
 	return roles, err
 }
