@@ -115,21 +115,18 @@ func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response
 		err = s.db.First(&roleName, "name = ?", name).Error
 		if err == nil {
 			var role model.Role
-			err = s.db.First(&role, model.Role{
-				RoleNameID: roleName.ID, ObjectId: request.ObjectId,
-			}).Error
+			err = s.db.First(&role,
+				"role_name_id = ? AND object_id = ?", roleName.ID, request.ObjectId,
+			).Error
 			if err == nil {
 				err = s.db.Delete(&model.Role{}, role.ID).Error
-				if err == nil {
-					if len(roleName.Roles) == 1 {
-						// we have deleted the last role with this name
-						err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
-					}
+				if err == nil && len(roleName.Roles) <= 1 {
+					// we have deleted the last role with this name
+					err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
 				}
-			} else if errors.Is(err, gorm.ErrRecordNotFound) {
-				err = nil
 			}
-		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			err = nil
 		}
 	} else {
@@ -197,7 +194,7 @@ func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 		err = db.Joins(
 			"Roles", "object_id IN (?)", objectIds,
 		).First(
-			&roleName, model.RoleName{Name: name},
+			&roleName, "name = ?", name,
 		).Error
 		if err == nil {
 			resRoles = append(resRoles, roleName.Roles...)
@@ -233,8 +230,12 @@ func loadRole(db *gorm.DB, name string, objectId uint64) (*model.RoleName, error
 	err := db.Joins(
 		"Roles", "object_id = ?", objectId,
 	).Joins("Roles.Actions").First(
-		&roleName, model.RoleName{Name: name},
+		&roleName, "name = ?", name,
 	).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// ignore unknown role
+		err = nil
+	}
 	return &roleName, err
 }
 
