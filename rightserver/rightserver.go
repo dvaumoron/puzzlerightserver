@@ -92,6 +92,7 @@ func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Res
 	roles, err := loadRoles(s.db, request.List)
 	if err == nil {
 		if len(roles) == 0 {
+			// delete unused user
 			err = s.db.Delete(&model.User{}, userId).Error
 		} else {
 			var user model.User
@@ -105,16 +106,43 @@ func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Res
 }
 
 func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
-	var roleName model.RoleName
-	err := s.db.FirstOrCreate(&roleName, model.RoleName{Name: request.Name}).Error
-	if err == nil {
-		var role model.Role
-		err = s.db.FirstOrCreate(&role, model.Role{
-			RoleNameID: roleName.ID, ObjectId: request.ObjectId,
-		}).Error
+	name := request.Name
+	actions := convertActionsFromRequest(request.List)
+	var err error
+	if len(actions) == 0 {
+		// delete unused role
+		var roleName model.RoleName
+		err = s.db.First(&roleName, "name = ?", name).Error
 		if err == nil {
-			actions := convertActionsFromRequest(request.List)
-			err = s.db.Model(&role).Association("Actions").Replace(actions)
+			var role model.Role
+			err = s.db.First(&role, model.Role{
+				RoleNameID: roleName.ID, ObjectId: request.ObjectId,
+			}).Error
+			if err == nil {
+				err = s.db.Delete(&model.Role{}, role.ID).Error
+				if err == nil {
+					if len(roleName.Roles) == 1 {
+						// we have deleted the last role with this name
+						err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
+					}
+				}
+			} else if errors.Is(err, gorm.ErrRecordNotFound) {
+				err = nil
+			}
+		} else if errors.Is(err, gorm.ErrRecordNotFound) {
+			err = nil
+		}
+	} else {
+		var roleName model.RoleName
+		err = s.db.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error
+		if err == nil {
+			var role model.Role
+			err = s.db.FirstOrCreate(&role, model.Role{
+				RoleNameID: roleName.ID, ObjectId: request.ObjectId,
+			}).Error
+			if err == nil {
+				err = s.db.Model(&role).Association("Actions").Replace(actions)
+			}
 		}
 	}
 	return &pb.Response{Success: err == nil}, nil
@@ -171,10 +199,11 @@ func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 		).First(
 			&roleName, model.RoleName{Name: name},
 		).Error
-		if err != nil {
+		if err == nil {
+			resRoles = append(resRoles, roleName.Roles...)
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) { // unknown roleName are ignored
 			break
 		}
-		resRoles = append(resRoles, roleName.Roles...)
 	}
 	return resRoles, err
 }
