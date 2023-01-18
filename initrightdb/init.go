@@ -22,7 +22,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/dvaumoron/puzzlerightserver/dbclient"
+	dbclient "github.com/dvaumoron/puzzledbclient"
 	"github.com/dvaumoron/puzzlerightserver/model"
 	pb "github.com/dvaumoron/puzzlerightservice"
 	"github.com/joho/godotenv"

@@ -22,7 +22,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/dvaumoron/puzzlerightserver/dbclient"
+	dbclient "github.com/dvaumoron/puzzledbclient"
 	"github.com/dvaumoron/puzzlerightserver/rightserver"
 	pb "github.com/dvaumoron/puzzlerightservice"
 	"github.com/joho/godotenv"
