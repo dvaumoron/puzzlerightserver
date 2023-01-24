@@ -45,22 +45,22 @@ func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 	).Joins(
 		"Roles.Actions", "id = ?", uint8(request.Action),
 	).First(&user, request.UserId).Error
-	var response *pb.Response
-	if err == nil {
-		success := false
-		for _, role := range user.Roles {
-			if success = len(role.Actions) != 0; success {
-				// if we reach here the correct result exists
-				break
-			}
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// unknown user are not authorized
+			return &pb.Response{Success: false}, nil
 		}
-		response = &pb.Response{Success: success}
-	} else if errors.Is(err, gorm.ErrRecordNotFound) {
-		// unknown user are not authorized
-		response = &pb.Response{Success: false}
-		err = nil
+		return nil, err
 	}
-	return response, err
+
+	success := false
+	for _, role := range user.Roles {
+		if success = len(role.Actions) != 0; success {
+			// if we reach here the correct result exists
+			break
+		}
+	}
+	return &pb.Response{Success: success}, nil
 }
 
 func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
@@ -68,101 +68,127 @@ func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Role
 	err := s.db.Joins(
 		"Roles", "object_id IN (?)", request.Ids,
 	).Joins("Roles.Actions").Find(&roleNames).Error
-	var response *pb.Roles
-	if err == nil {
-		response = &pb.Roles{List: convertRolesFromModel(roleNames)}
+	if err != nil {
+		return nil, err
 	}
-	return response, err
+	return &pb.Roles{List: convertRolesFromModel(roleNames)}, nil
 }
 
 func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
 	roleName, err := loadRole(s.db, request.Name, request.ObjectId)
-	var actions *pb.Actions
-	if err == nil {
-		actions = &pb.Actions{}
-		if roles := roleName.Roles; len(roles) != 0 {
-			actions.List = convertActionsFromModel(roles[0].Actions)
-		}
+	if err != nil {
+		return nil, err
 	}
-	return actions, err
+
+	actions := &pb.Actions{}
+	if roles := roleName.Roles; len(roles) != 0 {
+		actions.List = convertActionsFromModel(roles[0].Actions)
+	}
+	return actions, nil
 }
 
 func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Response, error) {
 	userId := request.UserId
 	roles, err := loadRoles(s.db, request.List)
-	if err == nil {
-		if len(roles) == 0 {
-			// delete unused user
-			err = s.db.Delete(&model.User{}, userId).Error
-		} else {
-			var user model.User
-			err = s.db.FirstOrCreate(&user, model.User{ID: userId}).Error
-			if err == nil {
-				err = s.db.Model(&user).Association("Roles").Replace(roles)
-			}
-		}
+	if err != nil {
+		return nil, err
 	}
-	return &pb.Response{Success: err == nil}, nil
+	if len(roles) == 0 {
+		// delete unused user
+		err = s.db.Delete(&model.User{}, userId).Error
+		if err != nil {
+			return nil, err
+		}
+		return &pb.Response{Success: true}, nil
+	}
+
+	var user model.User
+	err = s.db.FirstOrCreate(&user, model.User{ID: userId}).Error
+	if err != nil {
+		return nil, err
+	}
+	err = s.db.Model(&user).Association("Roles").Replace(roles)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Response{Success: true}, nil
 }
 
 func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
 	name := request.Name
 	actions := convertActionsFromRequest(request.List)
-	var err error
 	if len(actions) == 0 {
 		// delete unused role
 		var roleName model.RoleName
-		err = s.db.First(&roleName, "name = ?", name).Error
-		if err == nil {
-			var role model.Role
-			err = s.db.First(&role,
-				"role_name_id = ? AND object_id = ?", roleName.ID, request.ObjectId,
-			).Error
-			if err == nil {
-				err = s.db.Delete(&model.Role{}, role.ID).Error
-				if err == nil && len(roleName.Roles) <= 1 {
-					// we have deleted the last role with this name
-					err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
-				}
+		err := s.db.First(&roleName, "name = ?", name).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &pb.Response{Success: true}, nil
+			}
+			return nil, err
+		}
+		var role model.Role
+		err = s.db.First(&role,
+			"role_name_id = ? AND object_id = ?", roleName.ID, request.ObjectId,
+		).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &pb.Response{Success: true}, nil
+			}
+			return nil, err
+		}
+		err = s.db.Delete(&model.Role{}, role.ID).Error
+		if err != nil {
+			return nil, err
+		}
+		if len(roleName.Roles) <= 1 {
+			// we have deleted the last role with this name
+			err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
+			if err != nil {
+				return nil, err
 			}
 		}
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			err = nil
-		}
-	} else {
-		var roleName model.RoleName
-		err = s.db.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error
-		if err == nil {
-			var role model.Role
-			err = s.db.FirstOrCreate(&role, model.Role{
-				RoleNameID: roleName.ID, ObjectId: request.ObjectId,
-			}).Error
-			if err == nil {
-				err = s.db.Model(&role).Association("Actions").Replace(actions)
-			}
-		}
+		return &pb.Response{Success: true}, nil
 	}
-	return &pb.Response{Success: err == nil}, nil
+
+	var roleName model.RoleName
+	err := s.db.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error
+	if err != nil {
+		return nil, err
+	}
+	var role model.Role
+	err = s.db.FirstOrCreate(&role, model.Role{
+		RoleNameID: roleName.ID, ObjectId: request.ObjectId,
+	}).Error
+	if err != nil {
+		return nil, err
+	}
+	err = s.db.Model(&role).Association("Actions").Replace(actions)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Response{Success: true}, nil
 }
 
 func (s *Server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
 	var user model.User
 	err := s.db.Joins("Roles").First(&user, request.Id).Error
-	var roles *pb.Roles
-	if err == nil {
-		var roleNames []*model.RoleName
-		err = s.db.Joins(
-			"Roles", "id IN (?)", extractRoleIds(user.Roles),
-		).Joins("Roles.Actions").Find(&roleNames).Error
-		if err == nil {
-			roles = &pb.Roles{List: convertRolesFromModel(roleNames)}
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// unknown user, send back an empty role list
+			return &pb.Roles{}, nil
 		}
-	} else if errors.Is(err, gorm.ErrRecordNotFound) {
-		// unknown user, send back an empty role list
-		roles = &pb.Roles{}
-		err = nil
+		return nil, err
 	}
-	return roles, err
+
+	var roleNames []*model.RoleName
+	err = s.db.Joins(
+		"Roles", "id IN (?)", extractRoleIds(user.Roles),
+	).Joins("Roles.Actions").Find(&roleNames).Error
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Roles{List: convertRolesFromModel(roleNames)}, nil
 }
 
 func convertRolesFromModel(roleNames []*model.RoleName) []*pb.Role {
@@ -188,21 +214,23 @@ func convertActionsFromModel(actions []model.Action) []pb.RightAction {
 
 func loadRoles(db *gorm.DB, roles []*pb.RoleRequest) ([]*model.Role, error) {
 	var resRoles []*model.Role
-	var err error
 	for name, objectIds := range extractNamesToObjectIds(roles) {
 		var roleName model.RoleName
-		err = db.Joins(
+		err := db.Joins(
 			"Roles", "object_id IN (?)", objectIds,
 		).First(
 			&roleName, "name = ?", name,
 		).Error
-		if err == nil {
-			resRoles = append(resRoles, roleName.Roles...)
-		} else if !errors.Is(err, gorm.ErrRecordNotFound) { // unknown roleName are ignored
-			break
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				// unknown roleName are ignored
+				continue
+			}
+			return nil, err
 		}
+		resRoles = append(resRoles, roleName.Roles...)
 	}
-	return resRoles, err
+	return resRoles, nil
 }
 
 func extractNamesToObjectIds(roles []*pb.RoleRequest) map[string][]uint64 {
@@ -232,11 +260,14 @@ func loadRole(db *gorm.DB, name string, objectId uint64) (*model.RoleName, error
 	).Joins("Roles.Actions").First(
 		&roleName, "name = ?", name,
 	).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// ignore unknown role
-		err = nil
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// ignore unknown role
+			return nil, nil
+		}
+		return nil, err
 	}
-	return &roleName, err
+	return &roleName, nil
 }
 
 func convertActionsFromRequest(actions []pb.RightAction) []model.Action {
