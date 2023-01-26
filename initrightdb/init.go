@@ -18,17 +18,22 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 	"strconv"
 
 	dbclient "github.com/dvaumoron/puzzledbclient"
 	"github.com/dvaumoron/puzzlerightserver/model"
-	pb "github.com/dvaumoron/puzzlerightservice"
 	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 )
 
 const adminGroupId = 1 // groupId corresponding to role administration
+const administratorName = "Administrator"
+const allActionFlags = 15
+
+const dbErrorMsg = "Database error :"
 
 func main() {
 	if len(os.Args) == 0 {
@@ -48,21 +53,45 @@ func main() {
 
 	db := dbclient.Create()
 
-	db.AutoMigrate(&model.User{}, &model.Role{}, &model.Action{}, &model.RoleName{})
+	db.AutoMigrate(&model.User{}, &model.Role{}, &model.RoleName{})
 
-	ActionAccess := model.Action{ID: uint8(pb.RightAction_ACCESS)}
-	ActionCreate := model.Action{ID: uint8(pb.RightAction_ACCESS)}
-	ActionUpdate := model.Action{ID: uint8(pb.RightAction_ACCESS)}
-	ActionDelete := model.Action{ID: uint8(pb.RightAction_ACCESS)}
+	var roleName model.RoleName
+	err = db.Joins(
+		"Roles", "object_id = ?", adminGroupId,
+	).First(
+		&roleName, "name = ?", administratorName,
+	).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Fatal(dbErrorMsg, err)
+		}
 
-	db.Save(&ActionAccess)
-	db.Save(&ActionCreate)
-	db.Save(&ActionUpdate)
-	db.Save(&ActionDelete)
-
-	adminRole := &model.Role{ObjectId: adminGroupId,
-		Actions: []model.Action{ActionAccess, ActionCreate, ActionUpdate, ActionDelete},
+		// the rolename and role doesn't exist, create it
+		roleName = model.RoleName{
+			Name: administratorName, Roles: []model.Role{
+				{ObjectId: adminGroupId, ActionFlags: allActionFlags},
+			},
+		}
+		db.Create(&roleName)
 	}
-	db.Create(&model.RoleName{Name: "Admin", Roles: []*model.Role{adminRole}})
-	db.Save(&model.User{ID: adminUserId, Roles: []*model.Role{adminRole}})
+
+	var user model.User
+	err = db.First(&user, adminUserId).Error
+	if err == nil {
+		// the user already exist, nothing to do
+		return
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Fatal(dbErrorMsg, err)
+	}
+
+	user = model.User{ID: adminUserId}
+	err = db.Save(&user).Error
+	if err != nil {
+		log.Fatal(dbErrorMsg, err)
+	}
+	err = db.Model(&user).Association("Roles").Append(roleName.Roles)
+	if err != nil {
+		log.Fatal(dbErrorMsg, err)
+	}
 }
