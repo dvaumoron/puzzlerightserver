@@ -28,17 +28,17 @@ import (
 
 type empty = struct{}
 
-// Server is used to implement puzzlerightservice.RightServer.
-type Server struct {
+// server is used to implement puzzlerightservice.RightServer.
+type server struct {
 	pb.UnimplementedRightServer
 	db *gorm.DB
 }
 
-func New(db *gorm.DB) *Server {
-	return &Server{db: db}
+func New(db *gorm.DB) pb.RightServer {
+	return &server{db: db}
 }
 
-func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
+func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
 	var user model.User
 	err := s.db.Joins(
 		"Roles", "object_id = ?", request.ObjectId,
@@ -63,7 +63,7 @@ func (s *Server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 	return &pb.Response{Success: success}, nil
 }
 
-func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
+func (s *server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
 	var roleNames []*model.RoleName
 	err := s.db.Joins(
 		"Roles", "object_id IN (?)", request.Ids,
@@ -74,7 +74,7 @@ func (s *Server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Role
 	return &pb.Roles{List: convertRolesFromModel(roleNames)}, nil
 }
 
-func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
+func (s *server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
 	roleName, err := loadRole(s.db, request.Name, request.ObjectId)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (s *Server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 	return actions, nil
 }
 
-func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Response, error) {
+func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Response, error) {
 	userId := request.UserId
 	roles, err := loadRoles(s.db, request.List)
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *Server) UpdateUser(ctx context.Context, request *pb.UserRight) (*pb.Res
 	return &pb.Response{Success: true}, nil
 }
 
-func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
+func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response, error) {
 	name := request.Name
 	actions := convertActionsFromRequest(request.List)
 	if len(actions) == 0 {
@@ -170,7 +170,7 @@ func (s *Server) UpdateRole(ctx context.Context, request *pb.Role) (*pb.Response
 	return &pb.Response{Success: true}, nil
 }
 
-func (s *Server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
+func (s *server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
 	var user model.User
 	err := s.db.Joins("Roles").First(&user, request.Id).Error
 	if err != nil {
