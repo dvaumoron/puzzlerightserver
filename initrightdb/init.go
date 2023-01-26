@@ -76,8 +76,7 @@ func main() {
 	}
 
 	var user model.User
-	err = db.First(&user, adminUserId).Error
-	if err == nil {
+	if err = db.First(&user, adminUserId).Error; err == nil {
 		// the user already exist, nothing to do
 		return
 	}
@@ -86,8 +85,7 @@ func main() {
 	}
 
 	user = model.User{ID: adminUserId}
-	err = db.Save(&user).Error
-	if err != nil {
+	if err = db.Save(&user).Error; err != nil {
 		log.Fatal(dbErrorMsg, err)
 	}
 	err = db.Model(&user).Association("Roles").Append(roleName.Roles)
