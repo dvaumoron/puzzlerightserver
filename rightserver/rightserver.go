@@ -128,8 +128,7 @@ func (s server) UpdateUser(ctx context.Context, request *pb.UserRight) (response
 
 	var user model.User
 	if err = tx.First(&user, userId).Error; err == nil {
-		err = tx.Model(&user).Association("Roles").Replace(roles)
-		if err != nil {
+		if err = tx.Model(&user).Association("Roles").Replace(roles); err != nil {
 			return
 		}
 		return &pb.Response{Success: true}, nil
@@ -145,6 +144,22 @@ func (s server) UpdateUser(ctx context.Context, request *pb.UserRight) (response
 }
 
 func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.Response, err error) {
+	var tx *gorm.DB
+	commitOrRollback := func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			if err2, ok := r.(error); ok {
+				err = err2
+			} else {
+				panic(r)
+			}
+		} else if err == nil {
+			tx.Commit()
+		} else {
+			tx.Rollback()
+		}
+	}
+
 	name := request.Name
 	actionFlags := convertActionsToFlags(request.List)
 	if actionFlags == 0 {
@@ -167,21 +182,8 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 			return
 		}
 
-		tx := s.db.Begin()
-		defer func() {
-			if r := recover(); r != nil {
-				tx.Rollback()
-				if err2, ok := r.(error); ok {
-					err = err2
-				} else {
-					panic(r)
-				}
-			} else if err == nil {
-				tx.Commit()
-			} else {
-				tx.Rollback()
-			}
-		}()
+		tx = s.db.Begin()
+		defer commitOrRollback()
 
 		if err = tx.Delete(&model.Role{}, role.ID).Error; err != nil {
 			return
@@ -196,21 +198,8 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 		return &pb.Response{Success: true}, nil
 	}
 
-	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			if err2, ok := r.(error); ok {
-				err = err2
-			} else {
-				panic(r)
-			}
-		} else if err == nil {
-			tx.Commit()
-		} else {
-			tx.Rollback()
-		}
-	}()
+	tx = s.db.Begin()
+	defer commitOrRollback()
 
 	var roleName model.RoleName
 	if err = tx.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error; err != nil {
