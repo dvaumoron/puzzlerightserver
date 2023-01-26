@@ -73,7 +73,7 @@ func (s server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Roles{List: convertRolesFromModel(roleNames)}, nil
+	return &pb.Roles{List: convertRoleNamesFromModel(roleNames)}, nil
 }
 
 func (s server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
@@ -191,17 +191,16 @@ func (s server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Role
 		return nil, err
 	}
 
+	roles := user.Roles
 	var roleNames []model.RoleName
-	err = s.db.Joins(
-		"Roles", "id IN (?)", extractRoleIds(user.Roles),
-	).Find(&roleNames).Error
+	err = s.db.Find(&roleNames, "id IN (?)", extractRoleNameIds(roles)).Error
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Roles{List: convertRolesFromModel(roleNames)}, nil
+	return &pb.Roles{List: convertRolesFromModel(roles, roleNames)}, nil
 }
 
-func convertRolesFromModel(roleNames []model.RoleName) []*pb.Role {
+func convertRoleNamesFromModel(roleNames []model.RoleName) []*pb.Role {
 	var resRoles []*pb.Role
 	for _, roleName := range roleNames {
 		name := roleName.Name
@@ -211,6 +210,22 @@ func convertRolesFromModel(roleNames []model.RoleName) []*pb.Role {
 				List: convertActionsFromFlags(role.ActionFlags),
 			})
 		}
+	}
+	return resRoles
+}
+
+func convertRolesFromModel(roles []model.Role, roleNames []model.RoleName) []*pb.Role {
+	idToName := map[uint64]string{}
+	for _, roleName := range roleNames {
+		idToName[roleName.ID] = roleName.Name
+	}
+
+	resRoles := make([]*pb.Role, 0, len(roles))
+	for _, role := range roles {
+		resRoles = append(resRoles, &pb.Role{
+			Name: idToName[role.RoleNameID], ObjectId: role.ObjectId,
+			List: convertActionsFromFlags(role.ActionFlags),
+		})
 	}
 	return resRoles
 }
@@ -303,10 +318,10 @@ func convertActionToFlag(action pb.RightAction) uint8 {
 	return 1 << uint8(action)
 }
 
-func extractRoleIds(roles []model.Role) []uint64 {
+func extractRoleNameIds(roles []model.Role) []uint64 {
 	ids := make([]uint64, 0, len(roles))
 	for _, role := range roles {
-		ids = append(ids, role.ID)
+		ids = append(ids, role.RoleNameID)
 	}
 	return ids
 }
