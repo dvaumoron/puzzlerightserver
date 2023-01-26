@@ -112,12 +112,20 @@ func (s server) UpdateUser(ctx context.Context, request *pb.UserRight) (response
 
 	tx := s.db.Begin()
 	defer func() {
-		if r := recover(); r == nil && err == nil {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			if err2, ok := r.(error); ok {
+				err = err2
+			} else {
+				panic(r)
+			}
+		} else if err == nil {
 			tx.Commit()
 		} else {
 			tx.Rollback()
 		}
 	}()
+
 	var user model.User
 	if err = tx.First(&user, userId).Error; err == nil {
 		err = tx.Model(&user).Association("Roles").Replace(roles)
@@ -161,7 +169,14 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 
 		tx := s.db.Begin()
 		defer func() {
-			if r := recover(); r == nil && err == nil {
+			if r := recover(); r != nil {
+				tx.Rollback()
+				if err2, ok := r.(error); ok {
+					err = err2
+				} else {
+					panic(r)
+				}
+			} else if err == nil {
 				tx.Commit()
 			} else {
 				tx.Rollback()
@@ -183,7 +198,14 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 
 	tx := s.db.Begin()
 	defer func() {
-		if r := recover(); r == nil && err == nil {
+		if r := recover(); r != nil {
+			tx.Rollback()
+			if err2, ok := r.(error); ok {
+				err = err2
+			} else {
+				panic(r)
+			}
+		} else if err == nil {
 			tx.Commit()
 		} else {
 			tx.Rollback()
