@@ -36,7 +36,7 @@ const allActionFlags = 15
 const dbErrorMsg = "Database error :"
 
 func main() {
-	if len(os.Args) == 0 {
+	if len(os.Args) < 2 {
 		log.Print("Wait an id for the initial admin user as argument")
 	}
 
