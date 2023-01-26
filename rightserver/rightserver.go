@@ -304,7 +304,7 @@ func convertActionToFlag(action pb.RightAction) uint8 {
 }
 
 func extractRoleIds(roles []model.Role) []uint64 {
-	var ids []uint64
+	ids := make([]uint64, 0, len(roles))
 	for _, role := range roles {
 		ids = append(ids, role.ID)
 	}
