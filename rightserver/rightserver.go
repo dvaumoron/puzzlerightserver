@@ -20,6 +20,7 @@ package rightserver
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/dvaumoron/puzzlerightserver/model"
 	pb "github.com/dvaumoron/puzzlerightservice"
@@ -31,31 +32,28 @@ type empty = struct{}
 // server is used to implement puzzlerightservice.RightServer.
 type server struct {
 	pb.UnimplementedRightServer
-	db *gorm.DB
+	db            *gorm.DB
+	idToNameMutex sync.RWMutex
+	idToName      map[uint64]string
 }
 
 func New(db *gorm.DB) pb.RightServer {
-	return server{db: db}
+	return &server{db: db}
 }
 
-func (s server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
-	var user model.User
-	err := s.db.Joins(
-		"Roles", "object_id = ?", request.ObjectId,
-	).First(
-		&user, request.UserId,
-	).Error
+func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
+	subQuery := s.db.Model(&model.UserRoles{}).Select("role_id").Where(
+		"user_id = ?", request.UserId,
+	)
+	var roles []model.Role
+	err := s.db.Find(&roles, "id in (?)", subQuery).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// unknown user are not authorized
-			return &pb.Response{Success: false}, nil
-		}
 		return nil, err
 	}
 
 	success := false
 	requestFlag := convertActionToFlag(request.Action)
-	for _, role := range user.Roles {
+	for _, role := range roles {
 		success = role.ActionFlags&requestFlag != 0
 		if success {
 			// the correct right exists
@@ -65,23 +63,26 @@ func (s server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Re
 	return &pb.Response{Success: success}, nil
 }
 
-func (s server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
-	var roleNames []model.RoleName
-	err := s.db.Joins(
-		"Roles", "object_id IN (?)", request.Ids,
-	).Find(&roleNames).Error
+func (s *server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
+	var roles []model.Role
+	err := s.db.Find(&roles, "object_id IN ?", request.Ids).Error
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Roles{List: convertRoleNamesFromModel(roleNames)}, nil
+
+	resRoles, err := s.convertRolesFromModel(roles)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.Roles{List: resRoles}, nil
 }
 
-func (s server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
-	var roleName model.RoleName
-	err := s.db.Joins(
-		"Roles", "object_id = ?", request.ObjectId,
-	).First(
-		&roleName, "name = ?", request.Name,
+func (s *server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Actions, error) {
+	subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", request.Name)
+
+	var role model.Role
+	err := s.db.First(
+		&role, "name_id = (?) AND object_id = ?", subQuery, request.ObjectId,
 	).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -91,19 +92,21 @@ func (s server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Act
 		return nil, err
 	}
 
-	actions := convertActionsFromFlags(roleName.Roles[0].ActionFlags)
+	actions := convertActionsFromFlags(role.ActionFlags)
 	return &pb.Actions{List: actions}, nil
 }
 
-func (s server) UpdateUser(ctx context.Context, request *pb.UserRight) (response *pb.Response, err error) {
-	userId := request.UserId
+func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (response *pb.Response, err error) {
 	roles, err := s.loadRoles(request.List)
 	if err != nil {
 		return
 	}
-	if len(roles) == 0 {
+
+	userId := request.UserId
+	rolesLen := len(roles)
+	if rolesLen == 0 {
 		// delete unused user
-		err = s.db.Delete(&model.User{}, userId).Error
+		err = s.db.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
 		if err != nil {
 			return
 		}
@@ -126,24 +129,22 @@ func (s server) UpdateUser(ctx context.Context, request *pb.UserRight) (response
 		}
 	}()
 
-	var user model.User
-	if err = tx.First(&user, userId).Error; err == nil {
-		if err = tx.Model(&user).Association("Roles").Replace(roles); err != nil {
-			return
-		}
-		return &pb.Response{Success: true}, nil
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
+	err = tx.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
+	if err != nil {
 		return
 	}
-	user = model.User{ID: userId, Roles: roles}
-	if err = tx.Save(&user).Error; err != nil {
+
+	userRoles := make([]model.UserRoles, 0, rolesLen)
+	for _, role := range roles {
+		userRoles = append(userRoles, model.UserRoles{UserId: userId, RoleId: role.ID})
+	}
+	if err = tx.Create(&userRoles).Error; err != nil {
 		return
 	}
 	return &pb.Response{Success: true}, nil
 }
 
-func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.Response, err error) {
+func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.Response, err error) {
 	var tx *gorm.DB
 	commitOrRollback := func() {
 		if r := recover(); r != nil {
@@ -161,19 +162,14 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 	}
 
 	name := request.Name
+	objectId := request.ObjectId
 	actionFlags := convertActionsToFlags(request.List)
 	if actionFlags == 0 {
 		// delete unused role
-		var roleName model.RoleName
-		if err = s.db.First(&roleName, "name = ?", name).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return &pb.Response{Success: true}, nil
-			}
-			return
-		}
+		subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
 		var role model.Role
-		err = s.db.First(&role,
-			"role_name_id = ? AND object_id = ?", roleName.ID, request.ObjectId,
+		err = s.db.First(
+			&role, "name_id IN (?) AND object_id = ?", subQuery, objectId,
 		).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -188,9 +184,15 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 		if err = tx.Delete(&model.Role{}, role.ID).Error; err != nil {
 			return
 		}
-		if len(roleName.Roles) <= 1 {
+
+		var roles []model.Role
+		err = s.db.Find(&roles, "name_id IN (?)", subQuery).Error
+		if err != nil {
+			return
+		}
+		if len(roles) == 0 {
 			// we have deleted the last role with this name
-			err = s.db.Delete(&model.RoleName{}, roleName.ID).Error
+			err = tx.Delete(&model.RoleName{}, "name = ?", name).Error
 			if err != nil {
 				return
 			}
@@ -206,87 +208,103 @@ func (s server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.
 		return
 	}
 	var role model.Role
-	err = tx.FirstOrCreate(&role, model.Role{
-		RoleNameID: roleName.ID, ObjectId: request.ObjectId,
-	}).Error
-	if err != nil {
+	err = s.db.First(
+		&role, "name_id = ? AND object_id = ?", roleName.ID, objectId,
+	).Error
+	if err == nil {
+		if err = tx.Model(&role).Update("action_flags", actionFlags).Error; err != nil {
+			return
+		}
+		return &pb.Response{Success: true}, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return
 	}
-	if err = tx.Model(&role).Update("action_flags", actionFlags).Error; err != nil {
+	role = model.Role{NameId: role.NameId, ObjectId: objectId, ActionFlags: actionFlags}
+	if err = tx.Create(&role).Error; err != nil {
 		return
 	}
 	return &pb.Response{Success: true}, nil
 }
 
-func (s server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
-	var user model.User
-	err := s.db.Joins("Roles").First(&user, request.Id).Error
+func (s *server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
+	subQuery := s.db.Model(&model.UserRoles{}).Select("role_id").Where(
+		"user_id = ?", request.Id,
+	)
+
+	var roles []model.Role
+	err := s.db.Find(&roles, "id IN (?)", subQuery).Error
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// unknown user, send back an empty role list
-			return &pb.Roles{}, nil
-		}
 		return nil, err
 	}
 
-	roles := user.Roles
-	var roleNames []model.RoleName
-	err = s.db.Find(&roleNames, "id IN (?)", extractRoleNameIds(roles)).Error
+	resRoles, err := s.convertRolesFromModel(roles)
 	if err != nil {
 		return nil, err
 	}
-	return &pb.Roles{List: convertRolesFromModel(roles, roleNames)}, nil
+	return &pb.Roles{List: resRoles}, nil
 }
 
-func (s server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
+func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 	resRoles := make([]model.Role, 0, len(roles)) // probably lot more space than necessary
 	for name, objectIds := range extractNamesToObjectIds(roles) {
-		var roleName model.RoleName
-		err := s.db.Joins(
-			"Roles", "object_id IN (?)", objectIds,
-		).First(
-			&roleName, "name = ?", name,
+		subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
+
+		var roles []model.Role
+		err := s.db.First(
+			&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds,
 		).Error
 		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// unknown roleName are ignored
-				continue
-			}
 			return nil, err
 		}
-		resRoles = append(resRoles, roleName.Roles...)
+		if len(roles) != 0 {
+			resRoles = append(resRoles, roles...)
+		}
 	}
 	return resRoles, nil
 }
 
-func convertRoleNamesFromModel(roleNames []model.RoleName) []*pb.Role {
-	var resRoles []*pb.Role
-	for _, roleName := range roleNames {
-		name := roleName.Name
-		for _, role := range roleName.Roles {
-			resRoles = append(resRoles, &pb.Role{
-				Name: name, ObjectId: role.ObjectId,
-				List: convertActionsFromFlags(role.ActionFlags),
-			})
+func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
+	idSet := map[uint64]empty{}
+	s.idToNameMutex.RLock()
+	for _, role := range roles {
+		id := role.NameId
+		_, ok := s.idToName[id]
+		if !ok {
+			idSet[id] = empty{}
 		}
 	}
-	return resRoles
-}
+	s.idToNameMutex.RUnlock()
 
-func convertRolesFromModel(roles []model.Role, roleNames []model.RoleName) []*pb.Role {
-	idToName := map[uint64]string{}
-	for _, roleName := range roleNames {
-		idToName[roleName.ID] = roleName.Name
+	if len(idSet) != 0 {
+		queryIds := make([]uint64, 0, len(idSet))
+		for id := range idSet {
+			queryIds = append(queryIds, id)
+		}
+
+		var roleNames []model.RoleName
+		err := s.db.Find(&roleNames, "id IN ?", queryIds).Error
+		if err != nil {
+			return nil, err
+		}
+		s.idToNameMutex.Lock()
+		for _, roleName := range roleNames {
+			s.idToName[roleName.ID] = roleName.Name
+		}
+		s.idToNameMutex.Unlock()
 	}
 
 	resRoles := make([]*pb.Role, 0, len(roles))
 	for _, role := range roles {
+		s.idToNameMutex.RLock()
+		name := s.idToName[role.NameId]
+		s.idToNameMutex.RUnlock()
 		resRoles = append(resRoles, &pb.Role{
-			Name: idToName[role.RoleNameID], ObjectId: role.ObjectId,
+			Name: name, ObjectId: role.ObjectId,
 			List: convertActionsFromFlags(role.ActionFlags),
 		})
 	}
-	return resRoles
+	return resRoles, nil
 }
 
 func convertActionsFromFlags(actionFlags uint8) []pb.RightAction {
@@ -337,16 +355,4 @@ func convertActionsToFlags(actions []pb.RightAction) uint8 {
 
 func convertActionToFlag(action pb.RightAction) uint8 {
 	return 1 << uint8(action)
-}
-
-func extractRoleNameIds(roles []model.Role) []uint64 {
-	idSet := map[uint64]empty{}
-	for _, role := range roles {
-		idSet[role.RoleNameID] = empty{}
-	}
-	ids := make([]uint64, 0, len(idSet))
-	for id := range idSet {
-		ids = append(ids, id)
-	}
-	return ids
 }

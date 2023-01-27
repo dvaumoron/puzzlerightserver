@@ -18,19 +18,19 @@
 package model
 
 type RoleName struct {
-	ID    uint64
-	Name  string
-	Roles []Role
+	ID   uint64
+	Name string
 }
 
 type Role struct {
 	ID          uint64
-	RoleNameID  uint64
+	NameId      uint64
 	ObjectId    uint64
 	ActionFlags uint8
 }
 
-type User struct {
-	ID    uint64
-	Roles []Role `gorm:"many2many:user_roles;"`
+type UserRoles struct {
+	ID     uint64
+	UserId uint64
+	RoleId uint64
 }
