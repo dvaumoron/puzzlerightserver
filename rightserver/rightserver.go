@@ -20,12 +20,17 @@ package rightserver
 import (
 	"context"
 	"errors"
+	"log"
 	"sync"
 
 	"github.com/dvaumoron/puzzlerightserver/model"
 	pb "github.com/dvaumoron/puzzlerightservice"
 	"gorm.io/gorm"
 )
+
+const dbAccessMsg = "Failed to access database"
+
+var errInternal = errors.New("internal service error")
 
 type empty = struct{}
 
@@ -48,7 +53,8 @@ func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.R
 	var roles []model.Role
 	err := s.db.Find(&roles, "id in (?)", subQuery).Error
 	if err != nil {
-		return nil, err
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	success := false
@@ -67,7 +73,8 @@ func (s *server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Role
 	var roles []model.Role
 	err := s.db.Find(&roles, "object_id IN ?", request.Ids).Error
 	if err != nil {
-		return nil, err
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	resRoles, err := s.convertRolesFromModel(roles)
@@ -89,7 +96,9 @@ func (s *server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 			// ignore unknown role
 			return &pb.Actions{}, nil
 		}
-		return nil, err
+
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	actions := convertActionsFromFlags(role.ActionFlags)
@@ -108,17 +117,19 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 		// delete unused user
 		err = s.db.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
 		if err != nil {
-			return
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
 		return &pb.Response{Success: true}, nil
 	}
 
 	tx := s.db.Begin()
-	defer commitOrRollBack(tx, &err)
+	defer commitOrRollBack(tx, err)
 
 	err = tx.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
 	if err != nil {
-		return
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	userRoles := make([]model.UserRoles, 0, rolesLen)
@@ -126,7 +137,8 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 		userRoles = append(userRoles, model.UserRoles{UserId: userId, RoleId: role.ID})
 	}
 	if err = tx.Create(&userRoles).Error; err != nil {
-		return
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 	return &pb.Response{Success: true}, nil
 }
@@ -146,18 +158,22 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return &pb.Response{Success: true}, nil
 			}
-			return
+
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
 
 		if err = s.db.Delete(&model.Role{}, role.ID).Error; err != nil {
-			return
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
 
 		// we delete the names without roles
 		roleSubQuery := s.db.Model(&model.Role{}).Distinct("name_id")
 		err = s.db.Delete(&model.RoleName{}, "id NOT IN (?)", roleSubQuery).Error
 		if err != nil {
-			return
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
 
 		// invalidate the cache of name
@@ -168,26 +184,33 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 	}
 
 	tx := s.db.Begin()
-	defer commitOrRollBack(tx, &err)
+	defer commitOrRollBack(tx, err)
 
 	var roleName model.RoleName
 	if err = tx.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error; err != nil {
-		return
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
+
 	var role model.Role
 	err = s.db.First(&role, "name_id = ? AND object_id = ?", roleName.ID, objectId).Error
 	if err == nil {
 		if err = tx.Model(&role).Update("action_flags", actionFlags).Error; err != nil {
-			return
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
+
 		return &pb.Response{Success: true}, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
+
 	role = model.Role{NameId: role.NameId, ObjectId: objectId, ActionFlags: actionFlags}
 	if err = tx.Create(&role).Error; err != nil {
-		return
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 	return &pb.Response{Success: true}, nil
 }
@@ -198,12 +221,14 @@ func (s *server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Rol
 	var roles []model.Role
 	err := s.db.Find(&roles, "id IN (?)", subQuery).Error
 	if err != nil {
-		return nil, err
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	resRoles, err := s.convertRolesFromModel(roles)
 	if err != nil {
-		return nil, err
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 	return &pb.Roles{List: resRoles}, nil
 }
@@ -216,7 +241,8 @@ func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 		var roles []model.Role
 		err := s.db.First(&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds).Error
 		if err != nil {
-			return nil, err
+			log.Println(dbAccessMsg, err)
+			return nil, errInternal
 		}
 		if len(roles) != 0 {
 			resRoles = append(resRoles, roles...)
@@ -274,7 +300,8 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 
 	var roleNames []model.RoleName
 	if err := s.db.Find(&roleNames, "id IN ?", queryIds).Error; err != nil {
-		return nil, err
+		log.Println(dbAccessMsg, err)
+		return nil, errInternal
 	}
 
 	for _, roleName := range roleNames {
@@ -291,14 +318,10 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 	return resRoles, nil
 }
 
-func commitOrRollBack(tx *gorm.DB, err *error) {
+func commitOrRollBack(tx *gorm.DB, err error) {
 	if r := recover(); r != nil {
 		tx.Rollback()
-		if err2, ok := r.(error); ok {
-			*err = err2
-		} else {
-			panic(r)
-		}
+		log.Println(dbAccessMsg, r)
 	} else if err == nil {
 		tx.Commit()
 	} else {
