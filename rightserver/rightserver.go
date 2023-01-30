@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 )
 
-const dbAccessMsg = "Failed to access database"
+const dbAccessMsg = "Failed to access database :"
 
 var errInternal = errors.New("internal service error")
 
