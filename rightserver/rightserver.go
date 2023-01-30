@@ -283,9 +283,8 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 
 	resRoles = resRoles[:0]
 	for _, role := range roles {
-		name := s.idToName[role.NameId]
 		resRoles = append(resRoles, &pb.Role{
-			Name: name, ObjectId: role.ObjectId,
+			Name: s.idToName[role.NameId], ObjectId: role.ObjectId,
 			List: convertActionsFromFlags(role.ActionFlags),
 		})
 	}
