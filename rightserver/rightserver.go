@@ -160,6 +160,10 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 			return
 		}
 
+		// invalidate the cache of name
+		s.idToNameMutex.Lock()
+		s.idToName = map[uint64]string{}
+		s.idToNameMutex.Unlock()
 		return &pb.Response{Success: true}, nil
 	}
 
@@ -222,44 +226,69 @@ func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 }
 
 func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
-	idSet := map[uint64]empty{}
-	s.idToNameMutex.RLock()
-	for _, role := range roles {
-		id := role.NameId
-		_, ok := s.idToName[id]
-		if !ok {
-			idSet[id] = empty{}
-		}
-	}
-	s.idToNameMutex.RUnlock()
-
-	if len(idSet) != 0 {
-		queryIds := make([]uint64, 0, len(idSet))
-		for id := range idSet {
-			queryIds = append(queryIds, id)
-		}
-
-		var roleNames []model.RoleName
-		err := s.db.Find(&roleNames, "id IN ?", queryIds).Error
-		if err != nil {
-			return nil, err
-		}
-		s.idToNameMutex.Lock()
-		for _, roleName := range roleNames {
-			s.idToName[roleName.ID] = roleName.Name
-		}
-		s.idToNameMutex.Unlock()
-	}
-
+	allThere := true
 	resRoles := make([]*pb.Role, 0, len(roles))
 	s.idToNameMutex.RLock()
 	for _, role := range roles {
+		id := role.NameId
+		name, allThere := s.idToName[id]
+		if !allThere {
+			break
+		}
 		resRoles = append(resRoles, &pb.Role{
-			Name: s.idToName[role.NameId], ObjectId: role.ObjectId,
+			Name: name, ObjectId: role.ObjectId,
 			List: convertActionsFromFlags(role.ActionFlags),
 		})
 	}
 	s.idToNameMutex.RUnlock()
+	if allThere {
+		return resRoles, nil
+	}
+
+	s.idToNameMutex.Lock()
+	defer s.idToNameMutex.Unlock()
+	allThere = true
+	resRoles = resRoles[:0]
+	missingIdSet := map[uint64]empty{}
+	for _, role := range roles {
+		id := role.NameId
+		name, ok := s.idToName[id]
+		if ok {
+			resRoles = append(resRoles, &pb.Role{
+				Name: name, ObjectId: role.ObjectId,
+				List: convertActionsFromFlags(role.ActionFlags),
+			})
+		} else {
+			allThere = false
+			missingIdSet[id] = empty{}
+		}
+	}
+	if allThere {
+		return resRoles, nil
+	}
+
+	queryIds := make([]uint64, 0, len(missingIdSet))
+	for id := range missingIdSet {
+		queryIds = append(queryIds, id)
+	}
+
+	var roleNames []model.RoleName
+	if err := s.db.Find(&roleNames, "id IN ?", queryIds).Error; err != nil {
+		return nil, err
+	}
+
+	for _, roleName := range roleNames {
+		s.idToName[roleName.ID] = roleName.Name
+	}
+
+	resRoles = resRoles[:0]
+	for _, role := range roles {
+		name := s.idToName[role.NameId]
+		resRoles = append(resRoles, &pb.Role{
+			Name: name, ObjectId: role.ObjectId,
+			List: convertActionsFromFlags(role.ActionFlags),
+		})
+	}
 	return resRoles, nil
 }
 
@@ -279,7 +308,7 @@ func commitOrRollBack(tx *gorm.DB, err *error) {
 }
 
 func convertActionsFromFlags(actionFlags uint8) []pb.RightAction {
-	var resActions []pb.RightAction
+	resActions := make([]pb.RightAction, 0, 4)
 	if actionFlags&1 != 0 {
 		resActions = append(resActions, pb.RightAction_ACCESS)
 	}
