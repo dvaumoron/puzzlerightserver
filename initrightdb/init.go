@@ -53,30 +53,28 @@ func main() {
 
 	db := dbclient.Create()
 
-	db.AutoMigrate(&model.User{}, &model.Role{}, &model.RoleName{})
+	db.AutoMigrate(&model.UserRoles{}, &model.Role{}, &model.RoleName{})
 
 	var roleName model.RoleName
-	err = db.Joins(
-		"Roles", "object_id = ?", adminGroupId,
-	).First(
-		&roleName, "name = ?", administratorName,
-	).Error
+	err = db.FirstOrCreate(&roleName, model.RoleName{Name: administratorName}).Error
+	if err != nil {
+		log.Fatal(dbErrorMsg, err)
+	}
+
+	var role model.Role
+	err = db.First(&role, "name_id = ? AND object_id = ?", roleName.ID, adminGroupId).Error
 	if err != nil {
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Fatal(dbErrorMsg, err)
 		}
 
-		// the rolename and role doesn't exist, create it
-		roleName = model.RoleName{
-			Name: administratorName, Roles: []model.Role{
-				{ObjectId: adminGroupId, ActionFlags: allActionFlags},
-			},
-		}
-		db.Create(&roleName)
+		// create the role
+		role = model.Role{NameId: roleName.ID, ObjectId: adminGroupId, ActionFlags: allActionFlags}
+		db.Create(&role)
 	}
 
-	var user model.User
-	if err = db.First(&user, adminUserId).Error; err == nil {
+	var userRoles model.UserRoles
+	if err = db.First(&userRoles, adminUserId).Error; err == nil {
 		// the user already exist, nothing to do
 		return
 	}
@@ -84,12 +82,8 @@ func main() {
 		log.Fatal(dbErrorMsg, err)
 	}
 
-	user = model.User{ID: adminUserId}
-	if err = db.Save(&user).Error; err != nil {
-		log.Fatal(dbErrorMsg, err)
-	}
-	err = db.Model(&user).Association("Roles").Append(roleName.Roles)
-	if err != nil {
+	userRoles = model.UserRoles{UserId: adminUserId, RoleId: role.ID}
+	if err = db.Create(&userRoles).Error; err != nil {
 		log.Fatal(dbErrorMsg, err)
 	}
 }

@@ -82,7 +82,7 @@ func (s *server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 
 	var role model.Role
 	err := s.db.First(
-		&role, "name_id = (?) AND object_id = ?", subQuery, request.ObjectId,
+		&role, "name_id IN (?) AND object_id = ?", subQuery, request.ObjectId,
 	).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -114,20 +114,7 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 	}
 
 	tx := s.db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			if err2, ok := r.(error); ok {
-				err = err2
-			} else {
-				panic(r)
-			}
-		} else if err == nil {
-			tx.Commit()
-		} else {
-			tx.Rollback()
-		}
-	}()
+	defer commitOrRollBack(tx, &err)
 
 	err = tx.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
 	if err != nil {
@@ -145,31 +132,15 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 }
 
 func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.Response, err error) {
-	var tx *gorm.DB
-	commitOrRollback := func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-			if err2, ok := r.(error); ok {
-				err = err2
-			} else {
-				panic(r)
-			}
-		} else if err == nil {
-			tx.Commit()
-		} else {
-			tx.Rollback()
-		}
-	}
-
 	name := request.Name
 	objectId := request.ObjectId
 	actionFlags := convertActionsToFlags(request.List)
 	if actionFlags == 0 {
 		// delete unused role
-		subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
+		nameSubQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
 		var role model.Role
 		err = s.db.First(
-			&role, "name_id IN (?) AND object_id = ?", subQuery, objectId,
+			&role, "name_id IN (?) AND object_id = ?", nameSubQuery, objectId,
 		).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -178,39 +149,29 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 			return
 		}
 
-		tx = s.db.Begin()
-		defer commitOrRollback()
-
-		if err = tx.Delete(&model.Role{}, role.ID).Error; err != nil {
+		if err = s.db.Delete(&model.Role{}, role.ID).Error; err != nil {
 			return
 		}
 
-		var roles []model.Role
-		err = s.db.Find(&roles, "name_id IN (?)", subQuery).Error
+		// we delete the names without roles
+		roleSubQuery := s.db.Model(&model.Role{}).Distinct("name_id")
+		err = s.db.Delete(&model.RoleName{}, "id NOT IN (?)", roleSubQuery).Error
 		if err != nil {
 			return
 		}
-		if len(roles) == 0 {
-			// we have deleted the last role with this name
-			err = tx.Delete(&model.RoleName{}, "name = ?", name).Error
-			if err != nil {
-				return
-			}
-		}
+
 		return &pb.Response{Success: true}, nil
 	}
 
-	tx = s.db.Begin()
-	defer commitOrRollback()
+	tx := s.db.Begin()
+	defer commitOrRollBack(tx, &err)
 
 	var roleName model.RoleName
 	if err = tx.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error; err != nil {
 		return
 	}
 	var role model.Role
-	err = s.db.First(
-		&role, "name_id = ? AND object_id = ?", roleName.ID, objectId,
-	).Error
+	err = s.db.First(&role, "name_id = ? AND object_id = ?", roleName.ID, objectId).Error
 	if err == nil {
 		if err = tx.Model(&role).Update("action_flags", actionFlags).Error; err != nil {
 			return
@@ -228,9 +189,7 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 }
 
 func (s *server) ListUserRoles(ctx context.Context, request *pb.UserId) (*pb.Roles, error) {
-	subQuery := s.db.Model(&model.UserRoles{}).Select("role_id").Where(
-		"user_id = ?", request.Id,
-	)
+	subQuery := s.db.Model(&model.UserRoles{}).Select("role_id").Where("user_id = ?", request.Id)
 
 	var roles []model.Role
 	err := s.db.Find(&roles, "id IN (?)", subQuery).Error
@@ -251,9 +210,7 @@ func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 		subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
 
 		var roles []model.Role
-		err := s.db.First(
-			&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds,
-		).Error
+		err := s.db.First(&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds).Error
 		if err != nil {
 			return nil, err
 		}
@@ -295,16 +252,30 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 	}
 
 	resRoles := make([]*pb.Role, 0, len(roles))
+	s.idToNameMutex.RLock()
 	for _, role := range roles {
-		s.idToNameMutex.RLock()
-		name := s.idToName[role.NameId]
-		s.idToNameMutex.RUnlock()
 		resRoles = append(resRoles, &pb.Role{
-			Name: name, ObjectId: role.ObjectId,
+			Name: s.idToName[role.NameId], ObjectId: role.ObjectId,
 			List: convertActionsFromFlags(role.ActionFlags),
 		})
 	}
+	s.idToNameMutex.RUnlock()
 	return resRoles, nil
+}
+
+func commitOrRollBack(tx *gorm.DB, err *error) {
+	if r := recover(); r != nil {
+		tx.Rollback()
+		if err2, ok := r.(error); ok {
+			*err = err2
+		} else {
+			panic(r)
+		}
+	} else if err == nil {
+		tx.Commit()
+	} else {
+		tx.Rollback()
+	}
 }
 
 func convertActionsFromFlags(actionFlags uint8) []pb.RightAction {
