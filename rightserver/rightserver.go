@@ -242,6 +242,10 @@ func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 		var roles []model.Role
 		err := s.db.First(&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds).Error
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+
 			log.Println(dbAccessMsg, err)
 			return nil, errInternal
 		}
@@ -371,7 +375,7 @@ func extractNamesToObjectIds(roles []*pb.RoleRequest) map[string][]uint64 {
 func convertActionsToFlags(actions []pb.RightAction) uint8 {
 	var flags uint8
 	for _, action := range actions {
-		flags &= convertActionToFlag(action)
+		flags |= convertActionToFlag(action)
 	}
 	return flags
 }
