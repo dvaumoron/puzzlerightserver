@@ -208,7 +208,7 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 		return nil, errInternal
 	}
 
-	role = model.Role{NameId: role.NameId, ObjectId: objectId, ActionFlags: actionFlags}
+	role = model.Role{NameId: roleName.ID, ObjectId: objectId, ActionFlags: actionFlags}
 	if err = tx.Create(&role).Error; err != nil {
 		log.Println(dbAccessMsg, err)
 		return nil, errInternal
