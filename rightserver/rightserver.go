@@ -43,6 +43,7 @@ type server struct {
 }
 
 func New(db *gorm.DB) pb.RightServer {
+	db.AutoMigrate(&model.UserRoles{}, &model.Role{}, &model.RoleName{})
 	return &server{db: db}
 }
 
