@@ -125,7 +125,7 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 	}
 
 	tx := s.db.Begin()
-	defer commitOrRollBack(tx, err)
+	defer commitOrRollBack(tx, &err)
 
 	err = tx.Delete(&model.UserRoles{}, "user_id = ?", userId).Error
 	if err != nil {
@@ -185,7 +185,7 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 	}
 
 	tx := s.db.Begin()
-	defer commitOrRollBack(tx, err)
+	defer commitOrRollBack(tx, &err)
 
 	var roleName model.RoleName
 	if err = tx.FirstOrCreate(&roleName, model.RoleName{Name: name}).Error; err != nil {
@@ -323,11 +323,11 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 	return resRoles, nil
 }
 
-func commitOrRollBack(tx *gorm.DB, err error) {
+func commitOrRollBack(tx *gorm.DB, err *error) {
 	if r := recover(); r != nil {
 		tx.Rollback()
 		log.Println(dbAccessMsg, r)
-	} else if err == nil {
+	} else if *err == nil {
 		tx.Commit()
 	} else {
 		tx.Rollback()
