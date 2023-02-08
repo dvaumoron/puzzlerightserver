@@ -28,6 +28,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const publicObjectId = 0
+
 const dbAccessMsg = "Failed to access database :"
 
 var errInternal = errors.New("internal service error")
@@ -48,18 +50,31 @@ func New(db *gorm.DB) pb.RightServer {
 }
 
 func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
+	userId := request.UserId
+	objectId := request.ObjectId
+	action := request.Action
+
+	if objectId == publicObjectId {
+		// on public part, all is visible and all identified user can edit
+		return &pb.Response{Success: action == pb.RightAction_ACCESS || userId != 0}, nil
+	}
+	if userId == 0 {
+		// unindentified user, return false (bool default)
+		return &pb.Response{}, nil
+	}
+
 	subQuery := s.db.Model(&model.UserRoles{}).Select("role_id").Where(
-		"user_id = ?", request.UserId,
+		"user_id = ?", userId,
 	)
 	var roles []model.Role
-	err := s.db.Find(&roles, "id in (?)", subQuery).Error
+	err := s.db.Find(&roles, "id in (?) AND object_id = ?", subQuery, objectId).Error
 	if err != nil {
 		log.Println(dbAccessMsg, err)
 		return nil, errInternal
 	}
 
 	success := false
-	requestFlag := convertActionToFlag(request.Action)
+	requestFlag := convertActionToFlag(action)
 	for _, role := range roles {
 		success = role.ActionFlags&requestFlag != 0
 		if success {
@@ -147,6 +162,12 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb.Response, err error) {
 	name := request.Name
 	objectId := request.ObjectId
+
+	if objectId == publicObjectId {
+		// right on public part are not updatable, return false (bool default)
+		return &pb.Response{}, nil
+	}
+
 	actionFlags := convertActionsToFlags(request.List)
 	if actionFlags == 0 {
 		// delete unused role
