@@ -46,7 +46,7 @@ type server struct {
 
 func New(db *gorm.DB) pb.RightServer {
 	db.AutoMigrate(&model.UserRoles{}, &model.Role{}, &model.RoleName{})
-	return &server{db: db}
+	return &server{db: db, idToName: map[uint64]string{}}
 }
 
 func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
@@ -282,8 +282,9 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 	resRoles := make([]*pb.Role, 0, len(roles))
 	s.idToNameMutex.RLock()
 	for _, role := range roles {
+		var name string
 		id := role.NameId
-		name, allThere := s.idToName[id]
+		name, allThere = s.idToName[id]
 		if !allThere {
 			break
 		}
