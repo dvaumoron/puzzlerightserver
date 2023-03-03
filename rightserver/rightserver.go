@@ -380,16 +380,17 @@ func extractNamesToObjectIds(roles []*pb.RoleRequest) map[string][]uint64 {
 		objectIdSet := nameToObjectIdSet[name]
 		if objectIdSet == nil {
 			objectIdSet = map[uint64]empty{}
+			nameToObjectIdSet[name] = objectIdSet
 		}
 		objectIdSet[role.ObjectId] = empty{}
-		nameToObjectIdSet[name] = objectIdSet
 	}
 	nameToObjectIds := map[string][]uint64{}
 	for name, objectIdSet := range nameToObjectIdSet {
-		nameToObjectIds[name] = make([]uint64, 0, len(objectIdSet))
+		objectIds := make([]uint64, 0, len(objectIdSet))
 		for objectId := range objectIdSet {
-			nameToObjectIds[name] = append(nameToObjectIds[name], objectId)
+			objectIds = append(objectIds, objectId)
 		}
+		nameToObjectIds[name] = objectIds
 	}
 	return nameToObjectIds
 }
