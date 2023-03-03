@@ -261,7 +261,7 @@ func (s *server) loadRoles(roles []*pb.RoleRequest) ([]model.Role, error) {
 		subQuery := s.db.Model(&model.RoleName{}).Select("id").Where("name = ?", name)
 
 		var roles []model.Role
-		err := s.db.First(&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds).Error
+		err := s.db.Find(&roles, "name_id IN (?) AND object_id IN ?", subQuery, objectIds).Error
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				continue
