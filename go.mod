@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dvaumoron/puzzledbclient v1.1.0
-	github.com/dvaumoron/puzzlegrpcserver v1.0.1
+	github.com/dvaumoron/puzzlegrpcserver v1.1.0
 	github.com/dvaumoron/puzzlerightservice v1.3.0
 	gorm.io/gorm v1.24.3
 )
