@@ -9,3 +9,5 @@ buildah config --port 50051 puzzlerightserver-working-container
 buildah config --entrypoint '["/bin/puzzlerightserver"]' puzzlerightserver-working-container
 buildah commit puzzlerightserver-working-container puzzlerightserver
 buildah rm puzzlerightserver-working-container
+
+buildah push puzzlerightserver docker-daemon:puzzlerightserver:latest
