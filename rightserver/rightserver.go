@@ -288,10 +288,7 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 		if !allThere {
 			break
 		}
-		resRoles = append(resRoles, &pb.Role{
-			Name: name, ObjectId: role.ObjectId,
-			List: convertActionsFromFlags(role.ActionFlags),
-		})
+		resRoles = append(resRoles, convertRoleFromModel(name, role))
 	}
 	s.idToNameMutex.RUnlock()
 	if allThere {
@@ -307,10 +304,7 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 		id := role.NameId
 		name, ok := s.idToName[id]
 		if ok {
-			resRoles = append(resRoles, &pb.Role{
-				Name: name, ObjectId: role.ObjectId,
-				List: convertActionsFromFlags(role.ActionFlags),
-			})
+			resRoles = append(resRoles, convertRoleFromModel(name, role))
 		} else {
 			allThere = false
 			missingIdSet[id] = empty{}
@@ -337,12 +331,16 @@ func (s *server) convertRolesFromModel(roles []model.Role) ([]*pb.Role, error) {
 
 	resRoles = resRoles[:0]
 	for _, role := range roles {
-		resRoles = append(resRoles, &pb.Role{
-			Name: s.idToName[role.NameId], ObjectId: role.ObjectId,
-			List: convertActionsFromFlags(role.ActionFlags),
-		})
+		resRoles = append(resRoles, convertRoleFromModel(s.idToName[role.NameId], role))
 	}
 	return resRoles, nil
+}
+
+func convertRoleFromModel(name string, role model.Role) *pb.Role {
+	return &pb.Role{
+		Name: name, ObjectId: role.ObjectId,
+		List: convertActionsFromFlags(role.ActionFlags),
+	}
 }
 
 func commitOrRollBack(tx *gorm.DB, err *error) {
