@@ -26,6 +26,6 @@ import (
 
 func main() {
 	s := grpcserver.New()
-	pb.RegisterRightServer(s, rightserver.New(dbclient.Create()))
+	pb.RegisterRightServer(s, rightserver.New(dbclient.Create(s.Logger), s.Logger))
 	s.Start()
 }
