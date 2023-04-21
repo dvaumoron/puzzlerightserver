@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/dvaumoron/puzzledbclient v1.2.3
-	github.com/dvaumoron/puzzlegrpcserver v1.2.3
+	github.com/dvaumoron/puzzlegrpcserver v1.2.4
 	github.com/dvaumoron/puzzlerightservice v1.3.0
 	go.uber.org/zap v1.24.0
 	gorm.io/gorm v1.25.0
