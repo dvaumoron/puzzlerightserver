@@ -29,6 +29,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const RightKey = "puzzleRight"
+
 const publicObjectId = 0
 
 const dbAccessMsg = "Failed to access database"
