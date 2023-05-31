@@ -15,6 +15,7 @@
  * limitations under the License.
  *
  */
+
 package model
 
 type RoleName struct {
