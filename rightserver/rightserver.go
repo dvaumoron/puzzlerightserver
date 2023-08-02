@@ -49,7 +49,6 @@ type server struct {
 	logger        *otelzap.Logger
 }
 
-// TODO using Open Policy Agent ?
 func New(db *gorm.DB, logger *otelzap.Logger) pb.RightServer {
 	db.AutoMigrate(&model.UserRoles{}, &model.Role{}, &model.RoleName{})
 
