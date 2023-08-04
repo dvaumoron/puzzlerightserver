@@ -55,6 +55,7 @@ func New(db *gorm.DB, logger *otelzap.Logger) pb.RightServer {
 	return &server{db: db, idToName: map[uint64]string{}, logger: logger}
 }
 
+// TODO use Casbin ?
 func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
 	db := s.db.WithContext(ctx)
 	logger := s.logger.Ctx(ctx)
