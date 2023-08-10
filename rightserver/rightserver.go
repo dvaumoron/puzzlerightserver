@@ -25,6 +25,7 @@ import (
 
 	"github.com/dvaumoron/puzzlerightserver/model"
 	pb "github.com/dvaumoron/puzzlerightservice"
+	"github.com/open-policy-agent/opa/rego"
 	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
@@ -44,54 +45,45 @@ type empty = struct{}
 type server struct {
 	pb.UnimplementedRightServer
 	db            *gorm.DB
+	rule          rego.PreparedEvalQuery
 	idToNameMutex sync.RWMutex
 	idToName      map[uint64]string
 	logger        *otelzap.Logger
 }
 
-func New(db *gorm.DB, logger *otelzap.Logger) pb.RightServer {
+func New(db *gorm.DB, opaRule rego.PreparedEvalQuery, logger *otelzap.Logger) pb.RightServer {
 	db.AutoMigrate(&model.UserRoles{}, &model.Role{}, &model.RoleName{})
-
-	return &server{db: db, idToName: map[uint64]string{}, logger: logger}
+	return &server{db: db, rule: opaRule, idToName: map[uint64]string{}, logger: logger}
 }
 
 func (s *server) AuthQuery(ctx context.Context, request *pb.RightRequest) (*pb.Response, error) {
 	db := s.db.WithContext(ctx)
 	logger := s.logger.Ctx(ctx)
 
-	userId := request.UserId
-	objectId := request.ObjectId
-	action := request.Action
-
-	if objectId == publicObjectId {
-		// on public part, all is visible and all identified user can edit
-		return &pb.Response{Success: action == pb.RightAction_ACCESS || userId != 0}, nil
-	}
-	if userId == 0 {
-		// unindentified user, return false (bool default)
-		return &pb.Response{}, nil
-	}
-
-	subQuery := db.Model(&model.UserRoles{}).Select("role_id").Where(
-		"user_id = ?", userId,
-	)
+	var err error
 	var roles []model.Role
-	err := db.Find(&roles, "id in (?) AND object_id = ?", subQuery, objectId).Error
-	if err != nil {
-		logger.Error(dbAccessMsg, zap.Error(err))
-		return nil, errInternal
-	}
-
-	success := false
-	requestFlag := convertActionToFlag(action)
-	for _, role := range roles {
-		success = role.ActionFlags&requestFlag != 0
-		if success {
-			// the correct right exists
-			break
+	userId := request.UserId
+	if userId != 0 {
+		subQuery := db.Model(&model.UserRoles{}).Select("role_id").Where(
+			"user_id = ?", userId,
+		)
+		if err = db.Find(&roles, "id in (?)", subQuery).Error; err != nil {
+			logger.Error(dbAccessMsg, zap.Error(err))
+			return nil, errInternal
 		}
 	}
-	return &pb.Response{Success: success}, nil
+
+	input := map[string]any{
+		"userId": userId, "objectId": request.ObjectId,
+		"actionFlag": convertActionToFlag(request.Action),
+		"userRoles":  convertDataFromRolesModel(roles),
+	}
+	results, err := s.rule.Eval(ctx, rego.EvalInput(input))
+	if err != nil {
+		logger.Error("OPA evaluation failed", zap.Error(err))
+		return nil, errInternal
+	}
+	return &pb.Response{Success: results.Allowed()}, nil
 }
 
 func (s *server) ListRoles(ctx context.Context, request *pb.ObjectIds) (*pb.Roles, error) {
@@ -365,6 +357,17 @@ func convertRoleFromModel(name string, role model.Role) *pb.Role {
 		Name: name, ObjectId: role.ObjectId,
 		List: convertActionsFromFlags(role.ActionFlags),
 	}
+}
+
+func convertDataFromRolesModel(roles []model.Role) []any {
+	res := make([]any, 0, len(roles))
+	for _, role := range roles {
+		res = append(res, map[string]any{
+			"objectId":    role.ObjectId,
+			"actionFlags": role.ActionFlags,
+		})
+	}
+	return res
 }
 
 func commitOrRollBack(tx *gorm.DB, logger otelzap.LoggerWithCtx, err *error) {

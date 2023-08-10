@@ -20,18 +20,39 @@ package main
 
 import (
 	_ "embed"
+	"os"
 
 	dbclient "github.com/dvaumoron/puzzledbclient"
 	grpcserver "github.com/dvaumoron/puzzlegrpcserver"
 	"github.com/dvaumoron/puzzlerightserver/rightserver"
 	pb "github.com/dvaumoron/puzzlerightservice"
+	"github.com/open-policy-agent/opa/rego"
+	"go.uber.org/zap"
 )
 
 //go:embed version.txt
 var version string
 
 func main() {
-	s := grpcserver.Make(rightserver.RightKey, version)
-	pb.RegisterRightServer(s, rightserver.New(dbclient.Create(s.Logger), s.Logger))
-	s.Start()
+	// should start with this, to benefit from the call to godotenv
+	ctx, initSpan, s := grpcserver.Init(rightserver.RightKey, version)
+
+	data, err := os.ReadFile(os.Getenv("OPA_MODULE_FILE"))
+	if err != nil {
+		s.Logger.FatalContext(ctx, "Failed to load OPA module", zap.Error(err))
+	}
+
+	rule := rego.New(
+		rego.Query("data.auth.allow"),
+		rego.Module("auth.rego", string(data)),
+	)
+
+	query, err := rule.PrepareForEval(ctx)
+	if err != nil {
+		s.Logger.FatalContext(ctx, "Failed to initialize OPA module", zap.Error(err))
+	}
+	initSpan.End()
+
+	pb.RegisterRightServer(s, rightserver.New(dbclient.Create(s.Logger), query, s.Logger))
+	s.Start(ctx)
 }
