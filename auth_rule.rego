@@ -4,9 +4,16 @@ import future.keywords
 
 default allow := false
 
+publicObject := input.objectId == 0
+
 allow if {
-    input.objectId == 0 # public objectId is 0
-    actionFlag == 1 # access flag is 1
+    publicObject
+    input.actionFlag == 1 # access flag is 1
+}
+
+allow if {
+    publicObject
+    input.userId != 0 # connected user
 }
 
 allow if {

@@ -43,7 +43,7 @@ func main() {
 	}
 
 	rule := rego.New(
-		rego.Query("data.auth.allow"),
+		rego.Query("x = data.auth.allow"),
 		rego.Module("auth.rego", string(data)),
 	)
 
