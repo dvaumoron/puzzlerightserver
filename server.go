@@ -19,13 +19,14 @@
 package main
 
 import (
+	"database/sql"
 	_ "embed"
 	"os"
 
-	dbclient "github.com/dvaumoron/puzzledbclient"
 	grpcserver "github.com/dvaumoron/puzzlegrpcserver"
 	"github.com/dvaumoron/puzzlerightserver/rightserver"
 	pb "github.com/dvaumoron/puzzlerightservice"
+	_ "github.com/jackc/pgx/v5"
 	"github.com/open-policy-agent/opa/rego"
 	"go.uber.org/zap"
 )
@@ -53,6 +54,12 @@ func main() {
 	}
 	initSpan.End()
 
-	pb.RegisterRightServer(s, rightserver.New(dbclient.Create(s.Logger), query, s.Logger))
+	db, err := sql.Open("postgres", os.Getenv("DB_SERVER_ADDR"))
+	if err != nil {
+		s.Logger.FatalContext(ctx, "Failed to initialize DB", zap.Error(err))
+	}
+	defer db.Close()
+
+	pb.RegisterRightServer(s, rightserver.New(db, query, s.Logger))
 	s.Start(ctx)
 }

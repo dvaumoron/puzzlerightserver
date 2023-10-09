@@ -1,0 +1,149 @@
+
+load("dvaumoron/sql.crn", "ConstTimeoutSec", "ExecerContext", "RowQueryerContext", "QueryerContext", "CRUD", "BuildConvTypeDesc", "SelectQuery", "ConvertedResultQueryFunc", "MultiConvertedResultQueryFunc", "ExecFunc")
+
+def newModelFile():
+    f = NewFile("model")
+    f.HeaderComment("Generated from model.crn - do not edit.")
+    return f
+
+commonFile = newModelFile()
+
+ConstTimeoutSec(commonFile, 10)
+
+# interfaces allowing *sql.DB or *sql.Tx
+
+ExecerContext(commonFile, "ExecerContext")
+
+commonFile.Line()
+
+RowQueryerContext(commonFile, "RowQueryerContext")
+
+commonFile.Line()
+
+QueryerContext(commonFile, "QueryerContext")
+
+commonFile.Save("common.go")
+
+execerContext = Id("ExecerContext")
+rowQueryerContext = Id("RowQueryerContext")
+queryerContext = Id("QueryerContext")
+
+timeOutDuration = Id("timeout")
+
+roleNameFields={
+    "ID": Uint64(),
+    "Name": String(),
+}
+
+roleNameDesc = BuildConvTypeDesc("RoleName", roleNameFields)
+
+roleNameFile = newModelFile()
+
+roleNameType, roleNameBuilder = CRUD(
+    roleNameFile, roleNameDesc,
+    timeOutDuration=timeOutDuration,
+    execerContext=execerContext,
+    rowQueryerContext=rowQueryerContext,
+)
+
+roleNameFile.Line()
+
+roleFields={
+    "ID": Uint64(),
+    "NameId": Uint64(),
+    "ObjectId": Uint64(),
+    "ActionFlags": Uint8(),
+}
+
+roleDesc = BuildConvTypeDesc("Role", roleFields)
+
+roleFile = newModelFile()
+
+roleType, roleBuilder = CRUD(
+    roleFile, roleDesc,
+    timeOutDuration=timeOutDuration,
+    execerContext=execerContext,
+    rowQueryerContext=rowQueryerContext,
+)
+
+roleFile.Line()
+
+userRoleFile = newModelFile()
+
+userRoleType, userRoleBuilder = CRUD(
+    userRoleFile, BuildConvTypeDesc("UserRole", {
+        "ID": Uint64(),
+        "UserId": Uint64(),
+        "RoleId": Uint64(),
+    }),
+    timeOutDuration=timeOutDuration,
+    execerContext=execerContext,
+    rowQueryerContext=rowQueryerContext,
+)
+
+userRoleFile.Line()
+
+MultiConvertedResultQueryFunc(
+    roleFile, "GetRolesByUserId",
+    query=SelectQuery(roleDesc, "r.id in (select o.role_id from user_roles as o where o.user_id = :userId)", alias="r"),
+    timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"userId": Uint64()}, queryResultFields=roleFields,
+    converter=Id(roleBuilder), outputType=roleType,
+)
+
+MultiConvertedResultQueryFunc(
+    roleFile, "GetRolesByObjectIds",
+    query=SelectQuery(roleDesc, "r.object_id in (:objectIds)", alias="r"),
+    timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"objectIds": Op("[]").Uint64()},
+    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+)
+
+ConvertedResultQueryFunc(
+    roleFile, "GetRoleByNameAndObjectId",
+    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = :name and r.object_id = :objectId;", alias="r", joins={"role_names": "n"}),
+    timeOutDuration=timeOutDuration, poolType=rowQueryerContext, inputFields={"name": String(), "objectId": Uint64()},
+    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+)
+
+ConvertedResultQueryFunc(
+    roleFile, "GetRoleByNameIdAndObjectId",
+    query=SelectQuery(roleDesc, "r.name_id = :nameId and r.object_id = :objectId;", alias="r", joins={"role_names": "n"}),
+    timeOutDuration=timeOutDuration, poolType=rowQueryerContext, inputFields={"nameId": Uint64(), "objectId": Uint64()},
+    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+)
+
+MultiConvertedResultQueryFunc(
+    roleFile, "GetRolesByNameAndObjectIds",
+    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = :name and r.object_id in (:objectIds)", alias="r", joins={"role_names": "n"}),
+    timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"name": String(), "objectIds": Op("[]").Uint64()},
+    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+)
+
+ConvertedResultQueryFunc(
+    roleNameFile, "GetRoleNameByName",
+    query=SelectQuery(roleNameDesc, "n.name = :name", alias="n"),
+    timeOutDuration=timeOutDuration, poolType=rowQueryerContext, inputFields={"name": String()},
+    queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
+)
+
+MultiConvertedResultQueryFunc(
+    roleNameFile, "GetRoleNamesByIds",
+    query=SelectQuery(roleNameDesc, "n.id in (:ids)", alias="n"),
+    timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"ids": Op("[]").Uint64()},
+    queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
+)
+
+ExecFunc(
+    userRoleFile, "DeleteUserRolesByUserId",
+    query="delete from user_roles where user_id = :userId;",
+    timeOutDuration=timeOutDuration, poolType=execerContext, inputFields={"userId": Uint64()},
+)
+
+ExecFunc(
+    roleNameFile, "DeleteUnusedRoleNames",
+    query="delete from role_names where id not in (select distinct(name_id) from roles);",
+    timeOutDuration=timeOutDuration, poolType=execerContext, inputFields={},
+)
+
+roleNameFile.Save("rolename.go")
+roleFile.Save("role.go")
+userRoleFile.Save("userrole.go")
