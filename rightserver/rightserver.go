@@ -230,11 +230,11 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 	}
 	defer commitOrRollBack(tx, logger, &err)
 
-	roleName, err := model.GetRoleNameByName(conn, ctx, name)
+	roleName, err := model.GetRoleNameByName(tx, ctx, name)
 	if err == sql.ErrNoRows {
-		if err = model.MakeRoleName(0, name).Create(conn, ctx); err == nil {
+		if err = model.MakeRoleName(0, name).Create(tx, ctx); err == nil {
 			// must retrieve the id
-			roleName, err = model.GetRoleNameByName(conn, ctx, name)
+			roleName, err = model.GetRoleNameByName(tx, ctx, name)
 		}
 	}
 	if err != nil {
