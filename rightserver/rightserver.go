@@ -200,14 +200,14 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 	if actionFlags == 0 {
 		// delete unused role
 		role, err := model.GetRoleByNameAndObjectId(conn, ctx, name, objectId)
-		if err != nil {
-			logger.Error(dbAccessMsg, zap.Error(err))
-			return nil, errInternal
-		}
-
-		if err = role.Delete(conn, ctx); err != nil {
-			logger.Error(dbAccessMsg, zap.Error(err))
-			return nil, errInternal
+		if err != sql.ErrNoRows {
+			if err == nil {
+				err = role.Delete(conn, ctx)
+			}
+			if err != nil {
+				logger.Error(dbAccessMsg, zap.Error(err))
+				return nil, errInternal
+			}
 		}
 
 		// we delete the names without roles
@@ -232,7 +232,10 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 
 	roleName, err := model.GetRoleNameByName(conn, ctx, name)
 	if err == sql.ErrNoRows {
-		err = model.MakeRoleName(0, name).Create(conn, ctx)
+		if err = model.MakeRoleName(0, name).Create(conn, ctx); err == nil {
+			// must retrieve the id
+			roleName, err = model.GetRoleNameByName(conn, ctx, name)
+		}
 	}
 	if err != nil {
 		logger.Error(dbAccessMsg, zap.Error(err))
