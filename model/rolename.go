@@ -86,6 +86,7 @@ func GetRoleNameByName(pool RowQueryerContext, ctx context.Context, name string)
 	err := pool.QueryRowContext(ctx, "select n.i_d, n.name from role_names as n where n.name = :name;", sql.Named("name", name)).Scan(&IDTemp, &NameTemp)
 	return MakeRoleName(IDTemp, NameTemp), err
 }
+
 func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) ([]RoleName, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -108,6 +109,7 @@ func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) (
 	}
 	return results, nil
 }
+
 func DeleteUnusedRoleNames(pool ExecerContext, ctx context.Context) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

@@ -107,6 +107,7 @@ func GetRolesByUserId(pool QueryerContext, ctx context.Context, userId uint64) (
 	}
 	return results, nil
 }
+
 func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []uint64) ([]Role, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -131,6 +132,7 @@ func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []u
 	}
 	return results, nil
 }
+
 func GetRoleByNameAndObjectId(pool RowQueryerContext, ctx context.Context, name string, objectId uint64) (Role, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -142,6 +144,7 @@ func GetRoleByNameAndObjectId(pool RowQueryerContext, ctx context.Context, name 
 	err := pool.QueryRowContext(ctx, "select r.i_d, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = :name and r.object_id = :objectId;;", sql.Named("name", name), sql.Named("objectId", objectId)).Scan(&IDTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
 	return MakeRole(IDTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
 }
+
 func GetRoleByNameIdAndObjectId(pool RowQueryerContext, ctx context.Context, nameId uint64, objectId uint64) (Role, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -153,6 +156,7 @@ func GetRoleByNameIdAndObjectId(pool RowQueryerContext, ctx context.Context, nam
 	err := pool.QueryRowContext(ctx, "select r.i_d, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = :nameId and r.object_id = :objectId;;", sql.Named("nameId", nameId), sql.Named("objectId", objectId)).Scan(&IDTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
 	return MakeRole(IDTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
 }
+
 func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name string, objectIds []uint64) ([]Role, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

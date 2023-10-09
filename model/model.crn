@@ -90,12 +90,16 @@ MultiConvertedResultQueryFunc(
     converter=Id(roleBuilder), outputType=roleType,
 )
 
+roleFile.Line()
+
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByObjectIds",
     query=SelectQuery(roleDesc, "r.object_id in (:objectIds)", alias="r"),
     timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"objectIds": Op("[]").Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
+
+roleFile.Line()
 
 ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameAndObjectId",
@@ -104,12 +108,16 @@ ConvertedResultQueryFunc(
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
+roleFile.Line()
+
 ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameIdAndObjectId",
     query=SelectQuery(roleDesc, "r.name_id = :nameId and r.object_id = :objectId;", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, poolType=rowQueryerContext, inputFields={"nameId": Uint64(), "objectId": Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
+
+roleFile.Line()
 
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByNameAndObjectIds",
@@ -125,12 +133,16 @@ ConvertedResultQueryFunc(
     queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
 )
 
+roleNameFile.Line()
+
 MultiConvertedResultQueryFunc(
     roleNameFile, "GetRoleNamesByIds",
     query=SelectQuery(roleNameDesc, "n.id in (:ids)", alias="n"),
     timeOutDuration=timeOutDuration, poolType=queryerContext, inputFields={"ids": Op("[]").Uint64()},
     queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
 )
+
+roleNameFile.Line()
 
 ExecFunc(
     userRoleFile, "DeleteUserRolesByUserId",

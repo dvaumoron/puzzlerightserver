@@ -120,7 +120,7 @@ func (s *server) RoleRight(ctx context.Context, request *pb.RoleRequest) (*pb.Ac
 
 	role, err := model.GetRoleByNameAndObjectId(conn, ctx, request.Name, request.ObjectId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			// ignore unknown role
 			return &pb.Actions{}, nil
 		}
