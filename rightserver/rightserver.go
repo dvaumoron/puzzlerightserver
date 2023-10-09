@@ -171,7 +171,7 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 	}
 
 	for _, role := range roles {
-		if err = model.MakeUserRole(0, userId, role.ID).Create(tx, ctx); err != nil {
+		if err = model.MakeUserRole(0, userId, role.Id).Create(tx, ctx); err != nil {
 			logger.Error(dbAccessMsg, zap.Error(err))
 			return nil, errInternal
 		}
@@ -239,7 +239,7 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 		return nil, errInternal
 	}
 
-	role, err := model.GetRoleByNameIdAndObjectId(tx, ctx, roleName.ID, objectId)
+	role, err := model.GetRoleByNameIdAndObjectId(tx, ctx, roleName.Id, objectId)
 	if err == nil {
 		role.ActionFlags = actionFlags
 		if err = role.Update(tx, ctx); err != nil {
@@ -254,7 +254,7 @@ func (s *server) UpdateRole(ctx context.Context, request *pb.Role) (response *pb
 		return nil, errInternal
 	}
 
-	role = model.MakeRole(0, roleName.ID, objectId, actionFlags)
+	role = model.MakeRole(0, roleName.Id, objectId, actionFlags)
 	if err = role.Create(tx, ctx); err != nil {
 		logger.Error(dbAccessMsg, zap.Error(err))
 		return nil, errInternal
@@ -350,7 +350,7 @@ func (s *server) convertRolesFromModel(conn *sql.Conn, logger otelzap.LoggerWith
 	}
 
 	for _, roleName := range roleNames {
-		s.idToName[roleName.ID] = roleName.Name
+		s.idToName[roleName.Id] = roleName.Name
 	}
 
 	resRoles = resRoles[:0]

@@ -31,7 +31,7 @@ queryerContext = Id("QueryerContext")
 timeOutDuration = Id("timeout")
 
 roleNameFields={
-    "ID": Uint64(),
+    "Id": Uint64(),
     "Name": String(),
 }
 
@@ -49,7 +49,7 @@ roleNameType, roleNameBuilder = CRUD(
 roleNameFile.Line()
 
 roleFields={
-    "ID": Uint64(),
+    "Id": Uint64(),
     "NameId": Uint64(),
     "ObjectId": Uint64(),
     "ActionFlags": Uint8(),
@@ -72,7 +72,7 @@ userRoleFile = newModelFile()
 
 userRoleType, userRoleBuilder = CRUD(
     userRoleFile, BuildConvTypeDesc("UserRole", {
-        "ID": Uint64(),
+        "Id": Uint64(),
         "UserId": Uint64(),
         "RoleId": Uint64(),
     }),
