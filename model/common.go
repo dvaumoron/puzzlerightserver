@@ -5,6 +5,8 @@ package model
 import (
 	"context"
 	"database/sql"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,5 +25,19 @@ type QueryerContext interface {
 }
 
 func varArgsFilter(query string, placeholder string, size int) string {
-	return query
+	startIndex, _ := strconv.Atoi(placeholder[1:])
+	placeholders := make([]string, 0, size)
+	size += startIndex
+	for i := startIndex; i < size; i++ {
+		placeholders = append(placeholders, "$"+strconv.Itoa(i))
+	}
+	return strings.ReplaceAll(query, placeholder, strings.Join(placeholders, ", "))
+}
+
+func anyConverter[S ~[]E, E any](args S) []any {
+	results := make([]any, int64(0), len(args))
+	for _, arg := range args {
+		results = append(results, arg)
+	}
+	return results
 }

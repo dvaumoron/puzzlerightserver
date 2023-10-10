@@ -119,7 +119,7 @@ func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []u
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	rows, err := pool.QueryContext(ctx, query, objectIds)
+	rows, err := pool.QueryContext(ctx, query, anyConverter(objectIds)...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,10 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	rows, err := pool.QueryContext(ctx, query, name, objectIds)
+	args := make([]any, 0, len(objectIds)+1)
+	args = append(args, name)
+	args = append(args, anyConverter(objectIds)...)
+	rows, err := pool.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

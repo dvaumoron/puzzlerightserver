@@ -93,10 +93,10 @@ func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) (
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	query := "select n.id, n.name from role_names as n where n.id in ($1);"
+	query := varArgsFilter("select n.id, n.name from role_names as n where n.id in ($1);", "$1", len(ids))
 	var IdTemp uint64
 	var NameTemp string
-	rows, err := pool.QueryContext(ctx, query, ids)
+	rows, err := pool.QueryContext(ctx, query, anyConverter(ids)...)
 	if err != nil {
 		return nil, err
 	}
