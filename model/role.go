@@ -166,15 +166,16 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", "$2", len(objectIds))
+	size := len(objectIds)
+	queryArgs := make([]any, int64(0), size)
+	queryArgs = append(queryArgs, name)
+	queryArgs = append(queryArgs, anyConverter(objectIds)...)
+	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", "$2", size)
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	args := make([]any, 0, len(objectIds)+1)
-	args = append(args, name)
-	args = append(args, anyConverter(objectIds)...)
-	rows, err := pool.QueryContext(ctx, query, args...)
+	rows, err := pool.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, err
 	}

@@ -25,8 +25,8 @@ type QueryerContext interface {
 }
 
 func varArgsFilter(query string, placeholder string, size int) string {
-	startIndex, _ := strconv.Atoi(placeholder[1:])
-	placeholders := make([]string, 0, size)
+	startIndex, _ := strconv.Atoi(placeholder[int64(1):])
+	placeholders := make([]string, int64(0), size)
 	size += startIndex
 	for i := startIndex; i < size; i++ {
 		placeholders = append(placeholders, "$"+strconv.Itoa(i))
