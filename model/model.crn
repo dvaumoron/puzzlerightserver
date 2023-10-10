@@ -1,5 +1,5 @@
 
-load("dvaumoron/sql.crn", "ConstDurationSec", "DeclareDBInterfaces", "CRUD", "BuildConvTypeDesc", "SelectQuery", "ConvertedResultQueryFunc", "MultiConvertedResultQueryFunc", "ExecFunc")
+load("dvaumoron/sql.crn", "ConstDurationSec", "DeclareDBInterfaces", "DeclareVarArgsFilter", "CRUD", "BuildConvTypeDesc", "SelectQuery", "ConvertedResultQueryFunc", "MultiConvertedResultQueryFunc", "ExecFunc")
 
 def newModelFile():
     f = NewFile("model")
@@ -12,6 +12,10 @@ timeOutDuration = ConstDurationSec(commonFile, "timeout", 10)
 
 # interfaces allowing *sql.DB or *sql.Tx
 dbInterfaces = DeclareDBInterfaces(commonFile, "ExecerContext", "QueryerContext", "RowQueryerContext")
+
+commonFile.Line()
+
+DeclareVarArgsFilter(commonFile, "varArgsFilter")
 
 commonFile.Save("common.go")
 
@@ -77,7 +81,8 @@ roleFile.Line()
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByObjectIds",
     query=SelectQuery(roleDesc, "r.object_id in (@objectIds)", alias="r"),
-    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"objectIds": Op("[]").Uint64()},
+    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
+    inputFields={"objectIds": Op("[]").Uint64()}, varArgsFilter="varArgsFilter",
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
@@ -104,7 +109,8 @@ roleFile.Line()
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByNameAndObjectIds",
     query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id in (@objectIds)", alias="r", joins={"role_names": "n"}),
-    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String(), "objectIds": Op("[]").Uint64()},
+    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
+    inputFields={"name": String(), "objectIds": Op("[]").Uint64()}, varArgsFilter="varArgsFilter",
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
@@ -135,7 +141,7 @@ ExecFunc(
 ExecFunc(
     roleNameFile, "DeleteUnusedRoleNames",
     query="delete from role_names where id not in (select distinct(name_id) from roles);",
-    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={},
+    timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
 )
 
 roleNameFile.Save("rolename.go")

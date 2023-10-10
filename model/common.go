@@ -21,3 +21,7 @@ type RowQueryerContext interface {
 type QueryerContext interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
+
+func varArgsFilter(query string, placeholder string, size int) string {
+	return query
+}

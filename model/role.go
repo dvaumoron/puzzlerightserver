@@ -29,11 +29,12 @@ func ReadRole(pool RowQueryerContext, ctx context.Context, Id uint64) (Role, err
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := "select o.id, o.name_id, o.object_id, o.action_flags from roles as o where o.id = $1;"
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, "select o.id, o.name_id, o.object_id, o.action_flags from roles as o where o.id = $1;", Id).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+	err := pool.QueryRowContext(ctx, query, Id).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
 	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
 }
 
@@ -51,7 +52,8 @@ func createRole(pool ExecerContext, ctx context.Context, Id uint64, NameId uint6
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "insert into roles(id, name_id, object_id, action_flags) values($1, $2, $3, $4);", Id, NameId, ObjectId, ActionFlags)
+	query := "insert into roles(id, name_id, object_id, action_flags) values($1, $2, $3, $4);"
+	result, err := pool.ExecContext(ctx, query, Id, NameId, ObjectId, ActionFlags)
 	if err != nil {
 		return int64(0), err
 	}
@@ -62,7 +64,8 @@ func updateRole(pool ExecerContext, ctx context.Context, Id uint64, NameId uint6
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "update roles set name_id = $2, object_id = $3, action_flags = $4 where id = $1;", Id, NameId, ObjectId, ActionFlags)
+	query := "update roles set name_id = $2, object_id = $3, action_flags = $4 where id = $1;"
+	result, err := pool.ExecContext(ctx, query, Id, NameId, ObjectId, ActionFlags)
 	if err != nil {
 		return int64(0), err
 	}
@@ -73,7 +76,8 @@ func deleteRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, erro
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "delete from roles where id = $1;", Id)
+	query := "delete from roles where id = $1;"
+	result, err := pool.ExecContext(ctx, query, Id)
 	if err != nil {
 		return int64(0), err
 	}
@@ -84,11 +88,12 @@ func GetRolesByUserId(pool QueryerContext, ctx context.Context, userId uint64) (
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.id in (select o.role_id from user_roles as o where o.user_id = $1);"
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	rows, err := pool.QueryContext(ctx, "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.id in (select o.role_id from user_roles as o where o.user_id = $1);", userId)
+	rows, err := pool.QueryContext(ctx, query, userId)
 	if err != nil {
 		return nil, err
 	}
@@ -109,11 +114,12 @@ func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []u
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.object_id in ($1);", "$1", len(objectIds))
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	rows, err := pool.QueryContext(ctx, "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.object_id in ($1);", objectIds)
+	rows, err := pool.QueryContext(ctx, query, objectIds)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +140,12 @@ func GetRoleByNameAndObjectId(pool RowQueryerContext, ctx context.Context, name 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id = $2;"
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, "select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id = $2;", name, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+	err := pool.QueryRowContext(ctx, query, name, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
 	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
 }
 
@@ -146,11 +153,12 @@ func GetRoleByNameIdAndObjectId(pool RowQueryerContext, ctx context.Context, nam
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.name_id = $1 and r.object_id = $2;"
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.name_id = $1 and r.object_id = $2;", nameId, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+	err := pool.QueryRowContext(ctx, query, nameId, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
 	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
 }
 
@@ -158,11 +166,12 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", "$2", len(objectIds))
 	var IdTemp uint64
 	var NameIdTemp uint64
 	var ObjectIdTemp uint64
 	var ActionFlagsTemp uint8
-	rows, err := pool.QueryContext(ctx, "select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", name, objectIds)
+	rows, err := pool.QueryContext(ctx, query, name, objectIds)
 	if err != nil {
 		return nil, err
 	}

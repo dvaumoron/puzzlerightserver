@@ -27,10 +27,11 @@ func ReadUserRole(pool RowQueryerContext, ctx context.Context, Id uint64) (UserR
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	query := "select o.id, o.user_id, o.role_id from user_roles as o where o.id = $1;"
 	var IdTemp uint64
 	var UserIdTemp uint64
 	var RoleIdTemp uint64
-	err := pool.QueryRowContext(ctx, "select o.id, o.user_id, o.role_id from user_roles as o where o.id = $1;", Id).Scan(&IdTemp, &UserIdTemp, &RoleIdTemp)
+	err := pool.QueryRowContext(ctx, query, Id).Scan(&IdTemp, &UserIdTemp, &RoleIdTemp)
 	return MakeUserRole(IdTemp, UserIdTemp, RoleIdTemp), err
 }
 
@@ -48,7 +49,8 @@ func createUserRole(pool ExecerContext, ctx context.Context, Id uint64, UserId u
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "insert into user_roles(id, user_id, role_id) values($1, $2, $3);", Id, UserId, RoleId)
+	query := "insert into user_roles(id, user_id, role_id) values($1, $2, $3);"
+	result, err := pool.ExecContext(ctx, query, Id, UserId, RoleId)
 	if err != nil {
 		return int64(0), err
 	}
@@ -59,7 +61,8 @@ func updateUserRole(pool ExecerContext, ctx context.Context, Id uint64, UserId u
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "update user_roles set user_id = $2, role_id = $3 where id = $1;", Id, UserId, RoleId)
+	query := "update user_roles set user_id = $2, role_id = $3 where id = $1;"
+	result, err := pool.ExecContext(ctx, query, Id, UserId, RoleId)
 	if err != nil {
 		return int64(0), err
 	}
@@ -70,7 +73,8 @@ func deleteUserRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "delete from user_roles where id = $1;", Id)
+	query := "delete from user_roles where id = $1;"
+	result, err := pool.ExecContext(ctx, query, Id)
 	if err != nil {
 		return int64(0), err
 	}
@@ -81,7 +85,8 @@ func DeleteUserRolesByUserId(pool ExecerContext, ctx context.Context, userId uin
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "delete from user_roles where user_id = $1;", userId)
+	query := "delete from user_roles where user_id = $1;"
+	result, err := pool.ExecContext(ctx, query, userId)
 	if err != nil {
 		return int64(0), err
 	}
