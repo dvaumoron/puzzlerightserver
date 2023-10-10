@@ -148,8 +148,7 @@ func (s *server) UpdateUser(ctx context.Context, request *pb.UserRight) (respons
 	}
 
 	userId := request.UserId
-	rolesLen := len(roles)
-	if rolesLen == 0 {
+	if len(roles) == 0 {
 		// delete unused user
 		if _, err = model.DeleteUserRolesByUserId(conn, ctx, userId); err != nil {
 			logger.Error(dbAccessMsg, zap.Error(err))
