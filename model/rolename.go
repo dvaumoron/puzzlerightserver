@@ -2,10 +2,7 @@
 
 package model
 
-import (
-	"context"
-	"database/sql"
-)
+import "context"
 
 type RoleName struct {
 	Id   uint64
@@ -30,7 +27,7 @@ func ReadRoleName(pool RowQueryerContext, ctx context.Context, Id uint64) (RoleN
 
 	var IdTemp uint64
 	var NameTemp string
-	err := pool.QueryRowContext(ctx, "select o.id, o.name from role_names as o where o.id = :Id;", sql.Named("Id", Id)).Scan(&IdTemp, &NameTemp)
+	err := pool.QueryRowContext(ctx, "select o.id, o.name from role_names as o where o.id = $1;", Id).Scan(&IdTemp, &NameTemp)
 	return MakeRoleName(IdTemp, NameTemp), err
 }
 
@@ -48,7 +45,7 @@ func createRoleName(pool ExecerContext, ctx context.Context, Id uint64, Name str
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "insert into role_names(id, name) values(:Id, :Name);", sql.Named("Id", Id), sql.Named("Name", Name))
+	result, err := pool.ExecContext(ctx, "insert into role_names(id, name) values($1, $2);", Id, Name)
 	if err != nil {
 		return int64(0), err
 	}
@@ -59,7 +56,7 @@ func updateRoleName(pool ExecerContext, ctx context.Context, Id uint64, Name str
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "update role_names set name = :Name where id = :Id;", sql.Named("Id", Id), sql.Named("Name", Name))
+	result, err := pool.ExecContext(ctx, "update role_names set name = $2 where id = $1;", Id, Name)
 	if err != nil {
 		return int64(0), err
 	}
@@ -70,7 +67,7 @@ func deleteRoleName(pool ExecerContext, ctx context.Context, Id uint64) (int64, 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	result, err := pool.ExecContext(ctx, "delete from role_names where id = :Id;", sql.Named("Id", Id))
+	result, err := pool.ExecContext(ctx, "delete from role_names where id = $1;", Id)
 	if err != nil {
 		return int64(0), err
 	}
@@ -83,7 +80,7 @@ func GetRoleNameByName(pool RowQueryerContext, ctx context.Context, name string)
 
 	var IdTemp uint64
 	var NameTemp string
-	err := pool.QueryRowContext(ctx, "select n.id, n.name from role_names as n where n.name = :name;", sql.Named("name", name)).Scan(&IdTemp, &NameTemp)
+	err := pool.QueryRowContext(ctx, "select n.id, n.name from role_names as n where n.name = $1;", name).Scan(&IdTemp, &NameTemp)
 	return MakeRoleName(IdTemp, NameTemp), err
 }
 
@@ -93,7 +90,7 @@ func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) (
 
 	var IdTemp uint64
 	var NameTemp string
-	rows, err := pool.QueryContext(ctx, "select n.id, n.name from role_names as n where n.id in (:ids);", sql.Named("ids", ids))
+	rows, err := pool.QueryContext(ctx, "select n.id, n.name from role_names as n where n.id in ($1);", ids)
 	if err != nil {
 		return nil, err
 	}

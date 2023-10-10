@@ -26,7 +26,7 @@ import (
 	grpcserver "github.com/dvaumoron/puzzlegrpcserver"
 	"github.com/dvaumoron/puzzlerightserver/rightserver"
 	pb "github.com/dvaumoron/puzzlerightservice"
-	_ "github.com/jackc/pgx/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/open-policy-agent/opa/rego"
 	"go.uber.org/zap"
 )
@@ -54,7 +54,7 @@ func main() {
 	}
 	initSpan.End()
 
-	db, err := sql.Open("postgres", os.Getenv("DB_SERVER_ADDR"))
+	db, err := sql.Open("pgx", os.Getenv("DB_SERVER_ADDR"))
 	if err != nil {
 		s.Logger.FatalContext(ctx, "Failed to initialize DB", zap.Error(err))
 	}

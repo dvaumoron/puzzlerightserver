@@ -67,7 +67,7 @@ userRoleFile.Line()
 
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByUserId",
-    query=SelectQuery(roleDesc, "r.id in (select o.role_id from user_roles as o where o.user_id = :userId)", alias="r"),
+    query=SelectQuery(roleDesc, "r.id in (select o.role_id from user_roles as o where o.user_id = @userId)", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"userId": Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
@@ -76,7 +76,7 @@ roleFile.Line()
 
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByObjectIds",
-    query=SelectQuery(roleDesc, "r.object_id in (:objectIds)", alias="r"),
+    query=SelectQuery(roleDesc, "r.object_id in (@objectIds)", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"objectIds": Op("[]").Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
@@ -85,7 +85,7 @@ roleFile.Line()
 
 ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameAndObjectId",
-    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = :name and r.object_id = :objectId;", alias="r", joins={"role_names": "n"}),
+    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id = @objectId", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String(), "objectId": Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
@@ -94,7 +94,7 @@ roleFile.Line()
 
 ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameIdAndObjectId",
-    query=SelectQuery(roleDesc, "r.name_id = :nameId and r.object_id = :objectId;", alias="r", joins={"role_names": "n"}),
+    query=SelectQuery(roleDesc, "r.name_id = @nameId and r.object_id = @objectId", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"nameId": Uint64(), "objectId": Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
@@ -103,14 +103,14 @@ roleFile.Line()
 
 MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByNameAndObjectIds",
-    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = :name and r.object_id in (:objectIds)", alias="r", joins={"role_names": "n"}),
+    query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id in (@objectIds)", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String(), "objectIds": Op("[]").Uint64()},
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
 ConvertedResultQueryFunc(
     roleNameFile, "GetRoleNameByName",
-    query=SelectQuery(roleNameDesc, "n.name = :name", alias="n"),
+    query=SelectQuery(roleNameDesc, "n.name = @name", alias="n"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String()},
     queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
 )
@@ -119,7 +119,7 @@ roleNameFile.Line()
 
 MultiConvertedResultQueryFunc(
     roleNameFile, "GetRoleNamesByIds",
-    query=SelectQuery(roleNameDesc, "n.id in (:ids)", alias="n"),
+    query=SelectQuery(roleNameDesc, "n.id in (@ids)", alias="n"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"ids": Op("[]").Uint64()},
     queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
 )
@@ -128,7 +128,7 @@ roleNameFile.Line()
 
 ExecFunc(
     userRoleFile, "DeleteUserRolesByUserId",
-    query="delete from user_roles where user_id = :userId;",
+    query="delete from user_roles where user_id = @userId;",
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"userId": Uint64()},
 )
 
