@@ -52,7 +52,7 @@ func createRole(pool ExecerContext, ctx context.Context, Id uint64, NameId uint6
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	query := "insert into roles(id, name_id, object_id, action_flags) values($1, $2, $3, $4);"
+	query := "insert into roles(name_id, object_id, action_flags) values($2, $3, $4);"
 	result, err := pool.ExecContext(ctx, query, Id, NameId, ObjectId, ActionFlags)
 	if err != nil {
 		return int64(0), err
