@@ -49,7 +49,7 @@ func createRoleName(pool ExecerContext, ctx context.Context, Name string) (int64
 	query := "insert into role_names(name) values($1);"
 	result, err := pool.ExecContext(ctx, query, Name)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -61,7 +61,7 @@ func updateRoleName(pool ExecerContext, ctx context.Context, Id uint64, Name str
 	query := "update role_names set name = $2 where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id, Name)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -73,7 +73,7 @@ func deleteRoleName(pool ExecerContext, ctx context.Context, Id uint64) (int64, 
 	query := "delete from role_names where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -120,7 +120,7 @@ func DeleteUnusedRoleNames(pool ExecerContext, ctx context.Context) (int64, erro
 	query := "delete from role_names where id not in (select distinct(name_id) from roles);"
 	result, err := pool.ExecContext(ctx, query)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }

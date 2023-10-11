@@ -52,7 +52,7 @@ func createUserRole(pool ExecerContext, ctx context.Context, UserId uint64, Role
 	query := "insert into user_roles(user_id, role_id) values($1, $2);"
 	result, err := pool.ExecContext(ctx, query, UserId, RoleId)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -64,7 +64,7 @@ func updateUserRole(pool ExecerContext, ctx context.Context, Id uint64, UserId u
 	query := "update user_roles set user_id = $2, role_id = $3 where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id, UserId, RoleId)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -76,7 +76,7 @@ func deleteUserRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, 
 	query := "delete from user_roles where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -88,7 +88,7 @@ func DeleteUserRolesByUserId(pool ExecerContext, ctx context.Context, userId uin
 	query := "delete from user_roles where user_id = $1;"
 	result, err := pool.ExecContext(ctx, query, userId)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }

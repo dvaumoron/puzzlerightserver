@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const timeout = time.Duration(int64(10)) * time.Second
+const timeout = time.Duration(10) * time.Second
 
 type ExecerContext interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
@@ -25,8 +25,8 @@ type QueryerContext interface {
 }
 
 func varArgsFilter(query string, placeholder string, size int) string {
-	startIndex, _ := strconv.Atoi(placeholder[int64(1):])
-	placeholders := make([]string, int64(0), size)
+	startIndex, _ := strconv.Atoi(placeholder[1:])
+	placeholders := make([]string, 0, size)
 	size += startIndex
 	for i := startIndex; i < size; i++ {
 		placeholders = append(placeholders, "$"+strconv.Itoa(i))
@@ -35,7 +35,7 @@ func varArgsFilter(query string, placeholder string, size int) string {
 }
 
 func anyConverter[S ~[]E, E any](args S) []any {
-	results := make([]any, int64(0), len(args))
+	results := make([]any, 0, len(args))
 	for _, arg := range args {
 		results = append(results, arg)
 	}

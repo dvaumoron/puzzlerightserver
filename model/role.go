@@ -55,7 +55,7 @@ func createRole(pool ExecerContext, ctx context.Context, NameId uint64, ObjectId
 	query := "insert into roles(name_id, object_id, action_flags) values($1, $2, $3);"
 	result, err := pool.ExecContext(ctx, query, NameId, ObjectId, ActionFlags)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -67,7 +67,7 @@ func updateRole(pool ExecerContext, ctx context.Context, Id uint64, NameId uint6
 	query := "update roles set name_id = $2, object_id = $3, action_flags = $4 where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id, NameId, ObjectId, ActionFlags)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -79,7 +79,7 @@ func deleteRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, erro
 	query := "delete from roles where id = $1;"
 	result, err := pool.ExecContext(ctx, query, Id)
 	if err != nil {
-		return int64(0), err
+		return 0, err
 	}
 	return result.RowsAffected()
 }
@@ -167,7 +167,7 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 	defer cancel()
 
 	size := len(objectIds)
-	queryArgs := make([]any, int64(0), size)
+	queryArgs := make([]any, 0, size)
 	queryArgs = append(queryArgs, name)
 	queryArgs = append(queryArgs, anyConverter(objectIds)...)
 	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", "$2", size)
