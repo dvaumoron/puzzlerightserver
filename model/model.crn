@@ -88,7 +88,7 @@ MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByUserId",
     query=SelectQuery(roleDesc, "r.id in (select o.role_id from user_roles as o where o.user_id = @userId)", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"userId": Uint64()},
-    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+    queryResultFields=roleFields, converter=roleBuilder, outputType=roleType,
 )
 
 roleFile.Line()
@@ -98,7 +98,7 @@ MultiConvertedResultQueryFunc(
     query=SelectQuery(roleDesc, "r.object_id in (@objectIds)", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
     inputFields={"objectIds": Index().Uint64()}, varArgsUtil=varArgsUtil,
-    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+    queryResultFields=roleFields, converter=roleBuilder, outputType=roleType,
 )
 
 roleFile.Line()
@@ -107,7 +107,7 @@ ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameAndObjectId",
     query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id = @objectId", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String(), "objectId": Uint64()},
-    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+    queryResultFields=roleFields, converter=roleBuilder, outputType=roleType,
 )
 
 roleFile.Line()
@@ -116,7 +116,7 @@ ConvertedResultQueryFunc(
     roleFile, "GetRoleByNameIdAndObjectId",
     query=SelectQuery(roleDesc, "r.name_id = @nameId and r.object_id = @objectId", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"nameId": Uint64(), "objectId": Uint64()},
-    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+    queryResultFields=roleFields, converter=roleBuilder, outputType=roleType,
 )
 
 roleFile.Line()
@@ -126,14 +126,14 @@ MultiConvertedResultQueryFunc(
     query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id in (@objectIds)", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
     inputFields={"name": String(), "objectIds": Index().Uint64()}, varArgsUtil=varArgsUtil,
-    queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
+    queryResultFields=roleFields, converter=roleBuilder, outputType=roleType,
 )
 
 ConvertedResultQueryFunc(
     roleNameFile, "GetRoleNameByName",
     query=SelectQuery(roleNameDesc, "n.name = @name", alias="n"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces, inputFields={"name": String()},
-    queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
+    queryResultFields=roleNameFields, converter=roleNameBuilder, outputType=roleNameType,
 )
 
 roleNameFile.Line()
@@ -143,7 +143,7 @@ MultiConvertedResultQueryFunc(
     query=SelectQuery(roleNameDesc, "n.id in (@ids)", alias="n"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
     inputFields={"ids": Index().Uint64()}, varArgsUtil=varArgsUtil,
-    queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
+    queryResultFields=roleNameFields, converter=roleNameBuilder, outputType=roleNameType,
 )
 
 roleNameFile.Line()
