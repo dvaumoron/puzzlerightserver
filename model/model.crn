@@ -14,7 +14,7 @@
 #   limitations under the License.
 #
 
-load("dvaumoron/sql.crn", "ConstDurationSec", "DeclareDBInterfaces", "DeclareVarArgsFilter", "DeclareAnyConverter", "CRUD", "BuildConvTypeDesc", "SelectQuery", "ConvertedResultQueryFunc", "MultiConvertedResultQueryFunc", "ExecFunc")
+load("dvaumoron/sql.crn", "ConstDurationSec", "DeclareDBInterfaces", "DeclareVarArgsUtil", "CRUD", "BuildConvTypeDesc", "SelectQuery", "ConvertedResultQueryFunc", "MultiConvertedResultQueryFunc", "ExecFunc")
 
 def newModelFile():
     f = NewFile("model")
@@ -30,11 +30,7 @@ dbInterfaces = DeclareDBInterfaces(commonFile, "ExecerContext", "QueryerContext"
 
 commonFile.Line()
 
-DeclareVarArgsFilter(commonFile, "varArgsFilter")
-
-commonFile.Line()
-
-DeclareAnyConverter(commonFile, "anyConverter")
+varArgsUtil = DeclareVarArgsUtil(commonFile, "varArgsFilter", "anyConverter")
 
 commonFile.Save("common.go")
 
@@ -101,7 +97,7 @@ MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByObjectIds",
     query=SelectQuery(roleDesc, "r.object_id in (@objectIds)", alias="r"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
-    inputFields={"objectIds": Index().Uint64()}, varArgsFilter="varArgsFilter", anyConverter="anyConverter",
+    inputFields={"objectIds": Index().Uint64()}, varArgsUtil=varArgsUtil,
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
@@ -129,7 +125,7 @@ MultiConvertedResultQueryFunc(
     roleFile, "GetRolesByNameAndObjectIds",
     query=SelectQuery(roleDesc, "r.name_id = n.id and n.name = @name and r.object_id in (@objectIds)", alias="r", joins={"role_names": "n"}),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
-    inputFields={"name": String(), "objectIds": Index().Uint64()}, varArgsFilter="varArgsFilter", anyConverter="anyConverter",
+    inputFields={"name": String(), "objectIds": Index().Uint64()}, varArgsUtil=varArgsUtil,
     queryResultFields=roleFields, converter=Id(roleBuilder), outputType=roleType,
 )
 
@@ -146,7 +142,7 @@ MultiConvertedResultQueryFunc(
     roleNameFile, "GetRoleNamesByIds",
     query=SelectQuery(roleNameDesc, "n.id in (@ids)", alias="n"),
     timeOutDuration=timeOutDuration, dbInterfaces=dbInterfaces,
-    inputFields={"ids": Index().Uint64()}, varArgsFilter="varArgsFilter", anyConverter="anyConverter",
+    inputFields={"ids": Index().Uint64()}, varArgsUtil=varArgsUtil,
     queryResultFields=roleNameFields, converter=Id(roleNameBuilder), outputType=roleNameType,
 )
 
