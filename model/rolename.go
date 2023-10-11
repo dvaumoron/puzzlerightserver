@@ -17,7 +17,7 @@ func MakeRoleName(id uint64, name string) RoleName {
 }
 
 func (o RoleName) Create(pool ExecerContext, ctx context.Context) error {
-	_, err := createRoleName(pool, ctx, o.Id, o.Name)
+	_, err := createRoleName(pool, ctx, o.Name)
 	return err
 }
 
@@ -42,12 +42,12 @@ func (o RoleName) Delete(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func createRoleName(pool ExecerContext, ctx context.Context, Id uint64, Name string) (int64, error) {
+func createRoleName(pool ExecerContext, ctx context.Context, Name string) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	query := "insert into role_names(name) values($2);"
-	result, err := pool.ExecContext(ctx, query, Id, Name)
+	query := "insert into role_names(name) values($1);"
+	result, err := pool.ExecContext(ctx, query, Name)
 	if err != nil {
 		return int64(0), err
 	}

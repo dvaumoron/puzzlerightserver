@@ -19,7 +19,7 @@ func MakeUserRole(id uint64, userid uint64, roleid uint64) UserRole {
 }
 
 func (o UserRole) Create(pool ExecerContext, ctx context.Context) error {
-	_, err := createUserRole(pool, ctx, o.Id, o.UserId, o.RoleId)
+	_, err := createUserRole(pool, ctx, o.UserId, o.RoleId)
 	return err
 }
 
@@ -45,12 +45,12 @@ func (o UserRole) Delete(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func createUserRole(pool ExecerContext, ctx context.Context, Id uint64, UserId uint64, RoleId uint64) (int64, error) {
+func createUserRole(pool ExecerContext, ctx context.Context, UserId uint64, RoleId uint64) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	query := "insert into user_roles(user_id, role_id) values($2, $3);"
-	result, err := pool.ExecContext(ctx, query, Id, UserId, RoleId)
+	query := "insert into user_roles(user_id, role_id) values($1, $2);"
+	result, err := pool.ExecContext(ctx, query, UserId, RoleId)
 	if err != nil {
 		return int64(0), err
 	}
