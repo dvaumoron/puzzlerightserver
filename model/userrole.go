@@ -10,11 +10,11 @@ type UserRole struct {
 	RoleId uint64
 }
 
-func MakeUserRole(id uint64, userid uint64, roleid uint64) UserRole {
+func MakeUserRole(id uint64, userId uint64, roleId uint64) UserRole {
 	return UserRole{
 		Id:     id,
-		RoleId: roleid,
-		UserId: userid,
+		RoleId: roleId,
+		UserId: userId,
 	}
 }
 
@@ -23,16 +23,16 @@ func (o UserRole) Create(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func ReadUserRole(pool RowQueryerContext, ctx context.Context, Id uint64) (UserRole, error) {
+func ReadUserRole(pool RowQueryerContext, ctx context.Context, id uint64) (UserRole, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "select o.id, o.user_id, o.role_id from user_roles as o where o.id = $1;"
-	var IdTemp uint64
-	var UserIdTemp uint64
-	var RoleIdTemp uint64
-	err := pool.QueryRowContext(ctx, query, Id).Scan(&IdTemp, &UserIdTemp, &RoleIdTemp)
-	return MakeUserRole(IdTemp, UserIdTemp, RoleIdTemp), err
+	var idTemp uint64
+	var userIdTemp uint64
+	var roleIdTemp uint64
+	err := pool.QueryRowContext(ctx, query, id).Scan(&idTemp, &userIdTemp, &roleIdTemp)
+	return MakeUserRole(idTemp, userIdTemp, roleIdTemp), err
 }
 
 func (o UserRole) Update(pool ExecerContext, ctx context.Context) error {
@@ -45,36 +45,36 @@ func (o UserRole) Delete(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func createUserRole(pool ExecerContext, ctx context.Context, UserId uint64, RoleId uint64) (int64, error) {
+func createUserRole(pool ExecerContext, ctx context.Context, userId uint64, roleId uint64) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "insert into user_roles(user_id, role_id) values($1, $2);"
-	result, err := pool.ExecContext(ctx, query, UserId, RoleId)
+	result, err := pool.ExecContext(ctx, query, userId, roleId)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-func updateUserRole(pool ExecerContext, ctx context.Context, Id uint64, UserId uint64, RoleId uint64) (int64, error) {
+func updateUserRole(pool ExecerContext, ctx context.Context, id uint64, userId uint64, roleId uint64) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "update user_roles set user_id = $2, role_id = $3 where id = $1;"
-	result, err := pool.ExecContext(ctx, query, Id, UserId, RoleId)
+	result, err := pool.ExecContext(ctx, query, id, userId, roleId)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-func deleteUserRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, error) {
+func deleteUserRole(pool ExecerContext, ctx context.Context, id uint64) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "delete from user_roles where id = $1;"
-	result, err := pool.ExecContext(ctx, query, Id)
+	result, err := pool.ExecContext(ctx, query, id)
 	if err != nil {
 		return 0, err
 	}

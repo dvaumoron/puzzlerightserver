@@ -11,12 +11,12 @@ type Role struct {
 	ActionFlags uint8
 }
 
-func MakeRole(id uint64, nameid uint64, objectid uint64, actionflags uint8) Role {
+func MakeRole(id uint64, nameId uint64, objectId uint64, actionFlags uint8) Role {
 	return Role{
-		ActionFlags: actionflags,
+		ActionFlags: actionFlags,
 		Id:          id,
-		NameId:      nameid,
-		ObjectId:    objectid,
+		NameId:      nameId,
+		ObjectId:    objectId,
 	}
 }
 
@@ -25,17 +25,17 @@ func (o Role) Create(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func ReadRole(pool RowQueryerContext, ctx context.Context, Id uint64) (Role, error) {
+func ReadRole(pool RowQueryerContext, ctx context.Context, id uint64) (Role, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "select o.id, o.name_id, o.object_id, o.action_flags from roles as o where o.id = $1;"
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, query, Id).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
-	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
+	err := pool.QueryRowContext(ctx, query, id).Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
+	return MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp), err
 }
 
 func (o Role) Update(pool ExecerContext, ctx context.Context) error {
@@ -48,36 +48,36 @@ func (o Role) Delete(pool ExecerContext, ctx context.Context) error {
 	return err
 }
 
-func createRole(pool ExecerContext, ctx context.Context, NameId uint64, ObjectId uint64, ActionFlags uint8) (int64, error) {
+func createRole(pool ExecerContext, ctx context.Context, nameId uint64, objectId uint64, actionFlags uint8) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "insert into roles(name_id, object_id, action_flags) values($1, $2, $3);"
-	result, err := pool.ExecContext(ctx, query, NameId, ObjectId, ActionFlags)
+	result, err := pool.ExecContext(ctx, query, nameId, objectId, actionFlags)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-func updateRole(pool ExecerContext, ctx context.Context, Id uint64, NameId uint64, ObjectId uint64, ActionFlags uint8) (int64, error) {
+func updateRole(pool ExecerContext, ctx context.Context, id uint64, nameId uint64, objectId uint64, actionFlags uint8) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "update roles set name_id = $2, object_id = $3, action_flags = $4 where id = $1;"
-	result, err := pool.ExecContext(ctx, query, Id, NameId, ObjectId, ActionFlags)
+	result, err := pool.ExecContext(ctx, query, id, nameId, objectId, actionFlags)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-func deleteRole(pool ExecerContext, ctx context.Context, Id uint64) (int64, error) {
+func deleteRole(pool ExecerContext, ctx context.Context, id uint64) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	query := "delete from roles where id = $1;"
-	result, err := pool.ExecContext(ctx, query, Id)
+	result, err := pool.ExecContext(ctx, query, id)
 	if err != nil {
 		return 0, err
 	}
