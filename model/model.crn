@@ -51,14 +51,12 @@ roleNameType, roleNameBuilder = CRUD(
 
 roleNameFile.Line()
 
-roleFields={
+roleDesc = BuildConvTypeDesc("Role", {
     "Id": Uint64(),
     "NameId": Uint64(),
     "ObjectId": Uint64(),
     "ActionFlags": Uint8(),
-}
-
-roleDesc = BuildConvTypeDesc("Role", roleFields)
+})
 
 roleFile = newModelFile()
 
