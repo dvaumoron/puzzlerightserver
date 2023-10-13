@@ -83,10 +83,10 @@ func GetRoleNameByName(pool RowQueryerContext, ctx context.Context, name string)
 	defer cancel()
 
 	query := "select n.id, n.name from role_names as n where n.name = $1;"
-	var IdTemp uint64
-	var NameTemp string
-	err := pool.QueryRowContext(ctx, query, name).Scan(&IdTemp, &NameTemp)
-	return MakeRoleName(IdTemp, NameTemp), err
+	var idTemp uint64
+	var nameTemp string
+	err := pool.QueryRowContext(ctx, query, name).Scan(&idTemp, &nameTemp)
+	return MakeRoleName(idTemp, nameTemp), err
 }
 
 func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) ([]RoleName, error) {
@@ -94,8 +94,8 @@ func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) (
 	defer cancel()
 
 	query := varArgsFilter("select n.id, n.name from role_names as n where n.id in ($1);", "$1", len(ids))
-	var IdTemp uint64
-	var NameTemp string
+	var idTemp uint64
+	var nameTemp string
 	rows, err := pool.QueryContext(ctx, query, anyConverter(ids)...)
 	if err != nil {
 		return nil, err
@@ -104,11 +104,11 @@ func GetRoleNamesByIds(pool QueryerContext, ctx context.Context, ids []uint64) (
 
 	results := []RoleName{}
 	for rows.Next() {
-		err := rows.Scan(&IdTemp, &NameTemp)
+		err := rows.Scan(&idTemp, &nameTemp)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, MakeRoleName(IdTemp, NameTemp))
+		results = append(results, MakeRoleName(idTemp, nameTemp))
 	}
 	return results, nil
 }

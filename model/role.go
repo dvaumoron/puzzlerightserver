@@ -89,10 +89,10 @@ func GetRolesByUserId(pool QueryerContext, ctx context.Context, userId uint64) (
 	defer cancel()
 
 	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.id in (select o.role_id from user_roles as o where o.user_id = $1);"
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
 	rows, err := pool.QueryContext(ctx, query, userId)
 	if err != nil {
 		return nil, err
@@ -101,11 +101,11 @@ func GetRolesByUserId(pool QueryerContext, ctx context.Context, userId uint64) (
 
 	results := []Role{}
 	for rows.Next() {
-		err := rows.Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+		err := rows.Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp))
+		results = append(results, MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp))
 	}
 	return results, nil
 }
@@ -115,10 +115,10 @@ func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []u
 	defer cancel()
 
 	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.object_id in ($1);", "$1", len(objectIds))
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
 	rows, err := pool.QueryContext(ctx, query, anyConverter(objectIds)...)
 	if err != nil {
 		return nil, err
@@ -127,11 +127,11 @@ func GetRolesByObjectIds(pool QueryerContext, ctx context.Context, objectIds []u
 
 	results := []Role{}
 	for rows.Next() {
-		err := rows.Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+		err := rows.Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp))
+		results = append(results, MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp))
 	}
 	return results, nil
 }
@@ -141,12 +141,12 @@ func GetRoleByNameAndObjectId(pool RowQueryerContext, ctx context.Context, name 
 	defer cancel()
 
 	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id = $2;"
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, query, name, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
-	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
+	err := pool.QueryRowContext(ctx, query, name, objectId).Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
+	return MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp), err
 }
 
 func GetRoleByNameIdAndObjectId(pool RowQueryerContext, ctx context.Context, nameId uint64, objectId uint64) (Role, error) {
@@ -154,12 +154,12 @@ func GetRoleByNameIdAndObjectId(pool RowQueryerContext, ctx context.Context, nam
 	defer cancel()
 
 	query := "select r.id, r.name_id, r.object_id, r.action_flags from roles as r where r.name_id = $1 and r.object_id = $2;"
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
-	err := pool.QueryRowContext(ctx, query, nameId, objectId).Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
-	return MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp), err
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
+	err := pool.QueryRowContext(ctx, query, nameId, objectId).Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
+	return MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp), err
 }
 
 func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name string, objectIds []uint64) ([]Role, error) {
@@ -171,10 +171,10 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 	queryArgs = append(queryArgs, name)
 	queryArgs = append(queryArgs, anyConverter(objectIds)...)
 	query := varArgsFilter("select r.id, r.name_id, r.object_id, r.action_flags from roles as r, role_names as n where r.name_id = n.id and n.name = $1 and r.object_id in ($2);", "$2", size)
-	var IdTemp uint64
-	var NameIdTemp uint64
-	var ObjectIdTemp uint64
-	var ActionFlagsTemp uint8
+	var idTemp uint64
+	var nameIdTemp uint64
+	var objectIdTemp uint64
+	var actionFlagsTemp uint8
 	rows, err := pool.QueryContext(ctx, query, queryArgs...)
 	if err != nil {
 		return nil, err
@@ -183,11 +183,11 @@ func GetRolesByNameAndObjectIds(pool QueryerContext, ctx context.Context, name s
 
 	results := []Role{}
 	for rows.Next() {
-		err := rows.Scan(&IdTemp, &NameIdTemp, &ObjectIdTemp, &ActionFlagsTemp)
+		err := rows.Scan(&idTemp, &nameIdTemp, &objectIdTemp, &actionFlagsTemp)
 		if err != nil {
 			return nil, err
 		}
-		results = append(results, MakeRole(IdTemp, NameIdTemp, ObjectIdTemp, ActionFlagsTemp))
+		results = append(results, MakeRole(idTemp, nameIdTemp, objectIdTemp, actionFlagsTemp))
 	}
 	return results, nil
 }
