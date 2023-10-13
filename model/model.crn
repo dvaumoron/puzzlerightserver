@@ -34,16 +34,14 @@ varArgsUtil = DeclareVarArgsUtil(commonFile, "varArgsFilter", "anyConverter")
 
 commonFile.Save("common.go")
 
-roleNameFields={
+roleNameDesc = BuildConvTypeDesc("RoleName", {
     "Id": Uint64(),
     "Name": String(),
-}
-
-roleNameDesc = BuildConvTypeDesc("RoleName", roleNameFields)
+})
 
 roleNameFile = newModelFile()
 
-roleNameType, roleNameBuilder = CRUD(
+CRUD(
     roleNameFile, roleNameDesc,
     timeOutDuration=timeOutDuration,
     dbInterfaces=dbInterfaces,
@@ -60,7 +58,7 @@ roleDesc = BuildConvTypeDesc("Role", {
 
 roleFile = newModelFile()
 
-roleType, roleBuilder = CRUD(
+CRUD(
     roleFile, roleDesc,
     timeOutDuration=timeOutDuration,
     dbInterfaces=dbInterfaces,
@@ -70,7 +68,7 @@ roleFile.Line()
 
 userRoleFile = newModelFile()
 
-userRoleType, userRoleBuilder = CRUD(
+CRUD(
     userRoleFile, BuildConvTypeDesc("UserRole", {
         "Id": Uint64(),
         "UserId": Uint64(),
