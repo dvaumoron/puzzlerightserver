@@ -32,11 +32,12 @@ import (
 	"go.uber.org/zap"
 )
 
-const RightKey = "puzzleRight"
+const (
+	RightKey = "puzzleRight"
 
-const publicObjectId = 0
-
-const dbAccessMsg = "Failed to access database"
+	publicObjectId = 0
+	dbAccessMsg    = "Failed to access database"
+)
 
 var errInternal = errors.New("internal service error")
 
